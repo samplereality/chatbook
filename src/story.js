@@ -158,7 +158,17 @@ var Story = function() {
 		/* subtle send/receive sounds (opt-in; requires a user gesture) */
 		sounds: false,
 		/* show "(2) Story Name" in the tab title while it is hidden */
-		titleNotifications: true
+		titleNotifications: true,
+		/* where speakerless (narrator) passages appear:
+		   'chat'         - centered system text inside the conversation
+		   'overlay'      - a narration veil over the blurred chat
+		   'notification' - a phone-style notification banner
+		   Override per passage with the tags meta-chat / meta-overlay /
+		   meta-notification. */
+		metaStyle: 'chat',
+		/* app-name label on notification-style narration
+		   (defaults to the story name) */
+		metaNotificationLabel: ''
 	};
 
 	/**
@@ -253,8 +263,19 @@ Object.assign(Story.prototype, {
 			picker: byId('photo-picker'),
 			pickerGrid: byId('photo-picker-grid'),
 			pickerTitle: byId('photo-picker-title'),
+			metaOverlay: byId('meta-overlay'),
+			metaOverlayContent: byId('meta-overlay-content'),
+			metaNotification: byId('meta-notification'),
+			metaNotificationLabel: byId('meta-notification-label'),
+			metaNotificationBody: byId('meta-notification-body'),
 			rightSidebar: document.querySelector('.right-sidebar')
 		};
+
+		// tapping a notification banner dismisses it
+
+		this.dom.metaNotification.addEventListener('click', function() {
+			story.dom.metaNotification.hidden = true;
+		});
 
 		this.gallery = this.parseGallery();
 		this.speakers = this.parseSpeakers();
@@ -521,6 +542,7 @@ Object.assign(Story.prototype, {
 
 		this.movePassageToHistory();
 		this.pushCheckpoint();
+		this.hideMeta();
 		this.clearUserResponses();
 		this.showUserBubble(displayText);
 		this.playSound('send');
@@ -578,28 +600,39 @@ Object.assign(Story.prototype, {
 
 		var story = this;
 		var speaker = this.getPassageSpeaker(passage);
-		var nodes = this.buildPassageElement(passage, speaker, html);
+		var metaMode = speaker ? 'chat' : this.getMetaMode(passage);
 
-		nodes.forEach(function(node) {
-			if (opts.instant) {
-				node.classList.add('no-anim');
-			}
+		// any new content replaces active overlay/notification narration
 
-			if (node.classList.contains('chat-passage-wrapper')) {
-				story.applyGrouping(node);
-			}
+		this.hideMeta();
 
-			story.dom.passage.appendChild(node);
+		if (metaMode !== 'chat') {
+			this.showMeta(html, metaMode);
+		}
+		else {
+			var nodes = this.buildPassageElement(passage, speaker, html);
 
-			// images finish loading after the initial scroll; re-scroll
-			// so they don't leave the newest messages cut off
+			nodes.forEach(function(node) {
+				if (opts.instant) {
+					node.classList.add('no-anim');
+				}
 
-			node.querySelectorAll('img').forEach(function(img) {
-				img.addEventListener('load', function() {
-					story.scrollChatIntoView();
+				if (node.classList.contains('chat-passage-wrapper')) {
+					story.applyGrouping(node);
+				}
+
+				story.dom.passage.appendChild(node);
+
+				// images finish loading after the initial scroll;
+				// re-scroll so they don't cut off the newest messages
+
+				node.querySelectorAll('img').forEach(function(img) {
+					img.addEventListener('load', function() {
+						story.scrollChatIntoView();
+					});
 				});
 			});
-		});
+		}
 
 		// read receipts: explicit tags win, otherwise a speaker's reply
 		// marks the player's last message as read
@@ -1095,6 +1128,7 @@ Object.assign(Story.prototype, {
 
 		this.movePassageToHistory();
 		this.pushCheckpoint();
+		this.hideMeta();
 		this.clearUserResponses();
 
 		this.state.lastPhoto = name;
@@ -1409,6 +1443,68 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 Resolves how a speakerless (narrator) passage should be presented:
+	 a per-passage tag wins, then config.metaStyle, defaulting to 'chat'.
+	**/
+
+	getMetaMode: function(passage) {
+		if (passage.tags.indexOf('meta-overlay') > -1) {
+			return 'overlay';
+		}
+
+		if (passage.tags.indexOf('meta-notification') > -1) {
+			return 'notification';
+		}
+
+		if (passage.tags.indexOf('meta-chat') > -1) {
+			return 'chat';
+		}
+
+		var mode = this.config.metaStyle;
+
+		return mode === 'overlay' || mode === 'notification' ? mode : 'chat';
+	},
+
+	/**
+	 Presents narration outside the conversation: as a veil over the
+	 blurred chat ('overlay') or a phone-style banner ('notification').
+	 The player's responses stay live below either one.
+	**/
+
+	showMeta: function(html, mode) {
+		var probe = document.createElement('div');
+
+		probe.innerHTML = html;
+
+		if (
+			probe.textContent.trim() === '' &&
+			!probe.querySelector('img, video, iframe, svg')
+		) {
+			return;
+		}
+
+		if (mode === 'notification') {
+			this.dom.metaNotificationLabel.textContent =
+				this.config.metaNotificationLabel || this.name;
+			this.dom.metaNotificationBody.innerHTML = html;
+			this.dom.metaNotification.hidden = false;
+		}
+		else {
+			this.dom.metaOverlayContent.innerHTML = html;
+			this.dom.metaOverlay.hidden = false;
+		}
+	},
+
+	/**
+	 Dismisses any overlay or notification narration.
+	**/
+
+	hideMeta: function() {
+		this.dom.metaOverlay.hidden = true;
+		this.dom.metaNotification.hidden = true;
+	},
+
+	/**
 	 Shows an error as a meta message in the chat.
 	**/
 
@@ -1447,13 +1543,28 @@ Object.assign(Story.prototype, {
 			}
 		}
 
+		// keep overlay/notification narration restorable by undo
+
+		var meta = null;
+
+		if (!this.dom.metaOverlay.hidden) {
+			meta = { html: this.dom.metaOverlayContent.innerHTML, mode: 'overlay' };
+		}
+		else if (!this.dom.metaNotification.hidden) {
+			meta = {
+				html: this.dom.metaNotificationBody.innerHTML,
+				mode: 'notification'
+			};
+		}
+
 		this.checkpoints.push({
 			state: deepClone(this.state),
 			domCount: this.dom.history.children.length,
 			timelineLength: this.timeline.length,
 			passageId: window.passage ? window.passage.id : null,
 			links: window.passage ? window.passage.links.slice() : [],
-			lastReceipt: lastReceipt
+			lastReceipt: lastReceipt,
+			meta: meta
 		});
 
 		this.dom.undo.hidden = false;
@@ -1473,6 +1584,7 @@ Object.assign(Story.prototype, {
 
 		this.cancelTimers();
 		this.hideTyping();
+		this.hideMeta();
 		this.clearUserResponses();
 
 		// everything since the checkpoint is discarded
@@ -1507,6 +1619,10 @@ Object.assign(Story.prototype, {
 				checkpoint.lastReceipt.status,
 				checkpoint.lastReceipt.label
 			);
+		}
+
+		if (checkpoint.meta) {
+			this.showMeta(checkpoint.meta.html, checkpoint.meta.mode);
 		}
 
 		this.showUserResponses();
@@ -1837,6 +1953,7 @@ Object.assign(Story.prototype, {
 
 			this.cancelTimers();
 			this.hideTyping();
+			this.hideMeta();
 			this.clearUserResponses();
 			this.state = {};
 			this.timeline = [];

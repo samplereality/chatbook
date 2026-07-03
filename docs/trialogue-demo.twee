@@ -21,6 +21,12 @@ inject_hint(userResponseHintContent);
 
 story.config.sounds = true;
 
+// narrator (speakerless) passages float over the blurred chat;
+// other options: 'chat' (inside the conversation) or 'notification'
+// (a phone-style banner) — or per passage via the tags
+// meta-chat / meta-overlay / meta-notification
+story.config.metaStyle = 'overlay';
+
 
 :: StorySpeakers
 1: Alex; color: #5e5ce6
@@ -39,7 +45,9 @@ hi!
 
 
 :: hello
-this passage without speaker tag is rendered as a meta passage.
+A passage without a speaker tag belongs to the narrator.
+
+This story shows narration as an overlay above the chat — it can also sit inside the conversation, or arrive as a phone notification.
 
 [[ok]]
 

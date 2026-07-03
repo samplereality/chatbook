@@ -73,7 +73,7 @@ async function run() {
 		(await page.locator('.user-response').count()) === 2
 	);
 
-	console.log('choose "hello" -> meta passage');
+	console.log('choose "hello" -> narrator overlay');
 	await page.click('.user-response:has-text("hello")');
 	check(
 		'choice rendered as outgoing bubble',
@@ -81,17 +81,32 @@ async function run() {
 			.locator('.chat-passage-wrapper[data-speaker="you"]')
 			.count()) === 1
 	);
-	await page.waitForSelector('.meta-passage', { timeout: 10000 });
+	await page.waitForSelector('#meta-overlay:not([hidden])', { timeout: 10000 });
 	check(
-		'speakerless passage rendered as meta passage',
-		(await page.locator('.meta-passage').count()) === 1
+		'narrator passage shown as overlay (metaStyle: overlay)',
+		(await page.locator('#meta-overlay-content').textContent()).indexOf(
+			'narrator'
+		) !== -1
 	);
 	check(
-		'receipt stays Delivered while only a meta passage follows',
+		'overlay narration leaves no bubble in the chat',
+		(await page.locator('.meta-passage').count()) === 0
+	);
+	check(
+		'responses stay available under the overlay',
+		(await page.locator('.user-response:has-text("ok")').count()) === 1
+	);
+	check(
+		'receipt stays Delivered while only narration follows',
 		(await page
 			.locator('.chat-passage-wrapper[data-receipt="delivered"] .chat-receipt')
 			.textContent()) === 'Delivered'
 	);
+
+	if (SHOT_DIR) {
+		await page.waitForTimeout(600);
+		await page.screenshot({ path: path.join(SHOT_DIR, 'meta-overlay.png') });
+	}
 
 	console.log('choose "ok" -> typing indicator -> speaker 2');
 	await page.click('.user-response:has-text("ok")');
@@ -105,6 +120,10 @@ async function run() {
 	check(
 		'typing indicator hidden again',
 		await page.locator('#animation-container[hidden]').count() === 1
+	);
+	check(
+		'overlay narration dismissed by the next choice',
+		(await page.locator('#meta-overlay[hidden]').count()) === 1
 	);
 	check(
 		'speaker reply marks the last message Read',
@@ -267,6 +286,37 @@ async function run() {
 	check(
 		'title resets when the tab becomes visible',
 		(await page.title()) === 'Trialogue Demo'
+	);
+
+	console.log('notification-style narration');
+	await page.evaluate(() => {
+		window.story.config.metaStyle = 'notification';
+		window.story.show('hello');
+	});
+	await page.waitForSelector('#meta-notification:not([hidden])');
+	check(
+		'narrator passage shown as notification banner',
+		(await page.locator('#meta-notification-body').textContent()).indexOf(
+			'narrator'
+		) !== -1
+	);
+	check(
+		'notification banner is labeled with the story name',
+		(await page.locator('#meta-notification-label').textContent()) ===
+			'Trialogue Demo'
+	);
+
+	if (SHOT_DIR) {
+		await page.waitForTimeout(500);
+		await page.screenshot({
+			path: path.join(SHOT_DIR, 'meta-notification.png')
+		});
+	}
+
+	await page.click('.meta-notification-card');
+	check(
+		'tapping the banner dismisses it',
+		(await page.locator('#meta-notification[hidden]').count()) === 1
 	);
 
 	check('no page errors (' + errors.join('; ').slice(0, 300) + ')', errors.length === 0);

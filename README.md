@@ -42,7 +42,7 @@ Meet me at the docks in an hour?
 
 - Each paragraph (blank-line separated) becomes its own bubble.
 - `[[links]]` become the player's quick-reply choices. The usual Twine link forms work: `[[display|target]]`, `[[display->target]]`, `[[target<-display]]`.
-- A passage **without** a `speaker-` tag renders as a centered "meta" message — good for narration or scene breaks.
+- A passage **without** a `speaker-` tag belongs to the narrator — see [Narration](#narration) for the three ways it can be presented.
 - Speaker names get an avatar automatically (initial + a stable color derived from the name). Multi-word names use dashes: `speaker-happy-bot` displays as "happy bot".
 - Markdown, inline HTML, and Snowman-style `<%= s.variable %>` templates are all supported. Story state lives in `s` (an alias for `window.story.state`).
 
@@ -112,6 +112,22 @@ you've sent <%= s.sentPhotos.length %> photo(s)
 ```
 
 `s.lastPhoto` is the most recently sent image name; `s.sentPhotos` is an array of every image sent. Both participate in undo and save/restore like any other state, and a `photosent` event (`window.addEventListener('photosent', e => …)`, with `e.detail.name` and `e.detail.target`) fires on every send. Related config: `story.config.photoButtonLabel`, `story.config.photoPickerTitle`, and `story.config.preloadImages` (warms the browser cache for gallery images at startup, on by default).
+
+### Narration
+
+Speakerless passages are the narrator's voice, and you choose where that voice lives relative to the fiction of the text exchange:
+
+```js
+story.config.metaStyle = 'chat';         // default
+story.config.metaStyle = 'overlay';
+story.config.metaStyle = 'notification';
+```
+
+- **`chat`** — centered system-style text inside the conversation (the classic Trialogue behavior). Tight and contained, reads like an iMessage system message.
+- **`overlay`** — the narration floats over the blurred, dimmed chat, like the camera pulling back from the phone. The player's choices stay visible and tappable below it, and the veil lifts as soon as they choose or the next message arrives. Best for scene breaks and interiority that shouldn't pretend to be part of the phone.
+- **`notification`** — the narration drops in as a phone-style notification banner (labeled with the story name by default; change it with `story.config.metaNotificationLabel`). It stays inside the device's fiction — the narrator as an app pinging you. Tapping the banner dismisses it.
+
+Mix modes within one story by tagging individual passages `meta-chat`, `meta-overlay`, or `meta-notification` — a tag beats the global setting. Overlay and notification narration is ephemeral by design (it leaves no trace in the transcript), but it still participates in undo and save/restore, and the `read`/`unread` receipt tags work from any mode — narration saying *"hours pass"* over a message stuck on Delivered is exactly the kind of thing this is for.
 
 ### Speaker profiles
 
