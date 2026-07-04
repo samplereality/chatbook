@@ -11,7 +11,10 @@
 		<header class="chat-header">
 			<div class="chat-header-side chat-header-left">
 				<a id="nav-link-back" class="content-container header-action" href="/" hidden>Back</a>
-				<button id="nav-link-undo" class="header-action" type="button" hidden>Undo</button>
+				<button id="nav-link-undo" class="header-action header-action--icon" type="button" title="Undo" hidden>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>
+					<span class="visually-hidden">Undo</span>
+				</button>
 			</div>
 			<div class="chat-header-title">
 				<h1 id="ptitle"></h1>
@@ -21,7 +24,10 @@
 				</div>
 			</div>
 			<div class="chat-header-side chat-header-right">
-				<button id="nav-link-menu" class="content-container header-action" type="button" hidden>Menu</button>
+				<button id="nav-link-menu" class="content-container header-action header-action--icon" type="button" title="Menu" hidden>
+					<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+					<span class="visually-hidden">Menu</span>
+				</button>
 				<button id="nav-link-theme" class="header-action header-action--icon" type="button" title="Switch theme"></button>
 				<button id="nav-link-restart" class="header-action header-action--icon" type="button" title="Restart story">
 					<span aria-hidden="true">&#8635;</span>
@@ -76,6 +82,7 @@
 			<h2 class="modal-title content-container">Menu</h2>
 			<button type="button" class="photo-picker-close" data-menu-close aria-label="Close">&times;</button>
 		</div>
+		<div id="menu-container" class="content-container menu-section"></div>
 		<div id="left-sidebar-container" class="content-container menu-section"></div>
 		<div id="right-sidebar-container" class="content-container menu-section"></div>
 	</dialog>

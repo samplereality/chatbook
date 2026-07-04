@@ -301,15 +301,14 @@ Style an individual speaker by targeting its `data-speaker` attribute:
 The story presents as a phone — a single chat column, full-bleed on small screens and a framed phone-width card on larger ones (width via `--t-chat-width`). Supplementary content lives in a Menu modal; fill it from your story JavaScript:
 
 ```js
-inject_left_sidebar('<h3>About</h3><p>…</p>');   // first section of the Menu modal
-inject_right_sidebar('<p>Credits…</p>');         // second section of the Menu modal
-inject_nav_menu('about');                        // custom label for the Menu button
+inject_menu('<h3>About</h3><p>…</p>');           // content of the Menu modal
+inject_nav_menu('about');                        // custom label for the Menu button (replaces the ☰ icon)
 inject_hint('Choose an option to continue');     // text above the choices
 inject_modal('Leave?', '<p>Progress will be lost.</p>', '<button data-dismiss="modal">Stay</button>');
 inject_nav_back('← back');                       // shows a back link in the header
 ```
 
-(The `inject_*_sidebar` names are kept from Trialogue 1.x, which rendered them as desktop side columns; the Menu button only appears once one of them has content.) The header always includes an Undo button (appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
+The Menu button (☰) only appears once the menu has content. The Trialogue 1.x helpers `inject_left_sidebar()` / `inject_right_sidebar()` — which used to render desktop side columns — still work as deprecated aliases, each filling an additional section of the menu. The header always includes an Undo button (↩, appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
 
 ### Saving
 

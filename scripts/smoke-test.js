@@ -87,7 +87,7 @@ async function run() {
 	check(
 		'menu opens as a modal with injected content',
 		(await page
-			.locator('#menu-dialog #left-sidebar-container h3')
+			.locator('#menu-dialog #menu-container h3')
 			.textContent()) === 'Welcome'
 	);
 	await page.click('[data-menu-close]');

@@ -37,8 +37,7 @@ window.inject_nav_menu = function(htmlContent) {
 };
 
 /*
- * Sidebar content now lives in the menu modal (the 1.x sidebars are
- * gone); both helpers fill a section of it and reveal the Menu button.
+ * Fills the menu modal and reveals the header Menu button.
  */
 
 function injectMenuSection(selector, htmlContent) {
@@ -50,6 +49,15 @@ function injectMenuSection(selector, htmlContent) {
 		menu.hidden = false;
 	}
 }
+
+window.inject_menu = function(htmlContent) {
+	injectMenuSection('#menu-container', htmlContent);
+};
+
+/*
+ * Deprecated aliases from Trialogue 1.x, which rendered these as page
+ * side columns. Each fills its own additional section of the menu.
+ */
 
 window.inject_left_sidebar = function(htmlContent) {
 	injectMenuSection('#left-sidebar-container', htmlContent);
