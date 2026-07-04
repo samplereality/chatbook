@@ -16,9 +16,11 @@
 		"Apple Color Emoji", "Segoe UI Emoji";
 	--t-radius: 1.15rem;
 	--t-radius-sm: 0.3rem;
-	--t-chat-width: 44rem;
+	/* the width of the phone column */
+	--t-chat-width: 27rem;
 
 	/* light theme defaults */
+	--t-page-bg-default: #e2e3e8;
 	--t-bg-default: #f5f5f7;
 	--t-elevated-default: #ffffff;
 	--t-surface-default: rgba(250, 250, 252, 0.88);
@@ -35,6 +37,7 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
+		--t-page-bg-default: #000000;
 		--t-bg-default: #0a0a0d;
 		--t-elevated-default: #1c1c21;
 		--t-surface-default: rgba(20, 20, 24, 0.88);
@@ -50,6 +53,7 @@
 }
 
 :root[data-theme="light"] {
+	--t-page-bg-default: #e2e3e8;
 	--t-bg-default: #f5f5f7;
 	--t-elevated-default: #ffffff;
 	--t-surface-default: rgba(250, 250, 252, 0.88);
@@ -62,6 +66,7 @@
 }
 
 :root[data-theme="dark"] {
+	--t-page-bg-default: #000000;
 	--t-bg-default: #0a0a0d;
 	--t-elevated-default: #1c1c21;
 	--t-surface-default: rgba(20, 20, 24, 0.88);
@@ -75,6 +80,7 @@
 
 :root {
 	/* resolved values; legacy Trialogue 1.x variable names win if set */
+	--t-page-bg: var(--t-page-bg-default);
 	--t-bg: var(--bg-color, var(--t-bg-default));
 	--t-elevated: var(--t-elevated-default);
 	--t-surface: var(--navbar-bg-color, var(--t-surface-default));
@@ -107,10 +113,13 @@ body {
 	font-family: var(--t-font);
 	font-size: 16px;
 	line-height: 1.45;
-	background: var(--t-bg);
+	background: var(--t-page-bg);
 	color: var(--t-text);
 	-webkit-font-smoothing: antialiased;
 	overflow: hidden;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 img {
@@ -133,11 +142,27 @@ a {
 	border: 0;
 }
 
+/* The app is a phone: full-bleed on small screens, a framed
+   phone-width column on anything larger */
+
 #app {
 	display: flex;
 	flex-direction: column;
+	width: 100%;
 	height: 100vh;
 	height: 100dvh;
+	background: var(--t-bg);
+}
+
+@media (min-width: 30rem) {
+	#app {
+		width: var(--t-chat-width);
+		height: min(calc(100dvh - 2.5rem), 56rem);
+		border-radius: 1.4rem;
+		overflow: hidden;
+		border: 1px solid var(--t-border);
+		box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+	}
 }
 
 /* Header ================================================================== */
@@ -229,48 +254,16 @@ a {
 .chat-layout {
 	flex: 1;
 	display: flex;
-	justify-content: center;
 	min-height: 0;
 	position: relative;
 }
 
-.left-sidebar,
-.right-sidebar {
-	flex: 1 1 0;
-	max-width: 20rem;
-	overflow-y: auto;
-	padding: 1.5rem 1.25rem;
-	font-size: 0.9rem;
-	color: var(--t-muted);
-	display: none;
-}
-
-.left-sidebar h1, .right-sidebar h1,
-.left-sidebar h2, .right-sidebar h2,
-.left-sidebar h3, .right-sidebar h3 {
-	color: var(--t-text);
-	font-size: 1rem;
-	margin: 0 0 0.5rem;
-}
-
-.left-sidebar p,
-.right-sidebar p {
-	margin: 0 0 0.75rem;
-}
-
-@media (min-width: 64rem) {
-	.left-sidebar,
-	.right-sidebar {
-		display: block;
-	}
-}
-
 .chat-panel {
-	flex: 0 1 var(--t-chat-width);
+	flex: 1;
 	min-width: 0;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	padding: 1rem 1rem 1.25rem;
+	padding: 1rem 0.9rem 1.25rem;
 	scrollbar-width: thin;
 	scrollbar-color: color-mix(in srgb, var(--t-muted) 45%, transparent) transparent;
 }
@@ -278,8 +271,6 @@ a {
 .chat-stream {
 	display: flex;
 	flex-direction: column;
-	max-width: var(--t-chat-width);
-	margin: 0 auto;
 	min-height: 100%;
 	justify-content: flex-end;
 }
@@ -1058,28 +1049,50 @@ a {
 	}
 }
 
-/* Sidebars on small screens: right sidebar slides in as a drawer ========= */
+/* Menu dialog ============================================================= */
 
-@media (max-width: 63.98rem) {
-	.right-sidebar {
-		display: block;
-		position: fixed;
-		z-index: 40;
-		top: 0;
-		right: 0;
-		bottom: 0;
-		width: min(20rem, 88vw);
-		max-width: none;
-		padding-top: 4.5rem;
-		background: var(--t-elevated);
-		box-shadow: -12px 0 40px rgba(0, 0, 0, 0.18);
-		transform: translateX(105%);
-		transition: transform 0.3s ease;
-	}
+.menu-dialog-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
 
-	.right-sidebar.open {
-		transform: none;
-	}
+.menu-dialog-header .modal-title {
+	margin: 0;
+	font-size: 1.05rem;
+}
+
+.menu-section {
+	font-size: 0.9rem;
+	color: var(--t-muted);
+}
+
+.menu-section:empty {
+	display: none;
+}
+
+.menu-section + .menu-section:not(:empty) {
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--t-border);
+}
+
+.menu-section h1,
+.menu-section h2,
+.menu-section h3 {
+	color: var(--t-text);
+	font-size: 1rem;
+	margin: 0 0 0.4rem;
+}
+
+.menu-section p {
+	margin: 0 0 0.6rem;
+}
+
+.menu-section p:last-child {
+	margin-bottom: 0;
 }
 
 /* Dialog ================================================================== */

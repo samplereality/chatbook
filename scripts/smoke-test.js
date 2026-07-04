@@ -77,6 +77,57 @@ async function run() {
 		(await page.locator('.user-response').count()) === 2
 	);
 
+	console.log('menu modal & theme toggle');
+	check(
+		'sidebar columns are gone',
+		(await page.locator('.left-sidebar, .right-sidebar').count()) === 0
+	);
+	await page.click('#nav-link-menu');
+	await page.waitForSelector('#menu-dialog[open]');
+	check(
+		'menu opens as a modal with injected content',
+		(await page
+			.locator('#menu-dialog #left-sidebar-container h3')
+			.textContent()) === 'Welcome'
+	);
+	await page.click('[data-menu-close]');
+	check(
+		'menu modal closes',
+		(await page.locator('#menu-dialog[open]').count()) === 0
+	);
+	await page.click('#nav-link-theme');
+	check(
+		'theme toggle switches to dark mode',
+		(await page.evaluate(() =>
+			document.documentElement.getAttribute('data-theme')
+		)) === 'dark'
+	);
+	check(
+		'theme choice persisted per story',
+		await page.evaluate(() =>
+			Object.keys(window.localStorage).some(function(key) {
+				return key.indexOf('trialogue-theme-') === 0;
+			})
+		)
+	);
+	await page.click('#nav-link-theme');
+	check(
+		'theme toggle switches back to light mode',
+		(await page.evaluate(() =>
+			document.documentElement.getAttribute('data-theme')
+		)) === 'light'
+	);
+	// clear the explicit choice so later dark-mode screenshots follow
+	// the emulated system scheme again
+	await page.evaluate(() => {
+		document.documentElement.removeAttribute('data-theme');
+		Object.keys(window.localStorage).forEach(function(key) {
+			if (key.indexOf('trialogue-theme-') === 0) {
+				window.localStorage.removeItem(key);
+			}
+		});
+	});
+
 	console.log('choose "hello" -> narrator overlay');
 	await page.click('.user-response:has-text("hello")');
 	check(

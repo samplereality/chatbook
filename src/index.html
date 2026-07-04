@@ -22,6 +22,7 @@
 			</div>
 			<div class="chat-header-side chat-header-right">
 				<button id="nav-link-menu" class="content-container header-action" type="button" hidden>Menu</button>
+				<button id="nav-link-theme" class="header-action header-action--icon" type="button" title="Switch theme"></button>
 				<button id="nav-link-restart" class="header-action header-action--icon" type="button" title="Restart story">
 					<span aria-hidden="true">&#8635;</span>
 					<span class="visually-hidden">Restart story</span>
@@ -30,10 +31,6 @@
 		</header>
 
 		<div class="chat-layout">
-			<aside class="left-sidebar">
-				<div id="left-sidebar-container" class="content-container"></div>
-			</aside>
-
 			<main id="chat-panel" class="chat-panel" role="main">
 				<div class="chat-stream" aria-live="polite">
 					<div id="phistory" class="chat-history"></div>
@@ -52,10 +49,6 @@
 					</div>
 				</div>
 			</main>
-
-			<aside class="right-sidebar">
-				<div id="right-sidebar-container" class="content-container"></div>
-			</aside>
 
 			<div id="meta-overlay" class="meta-overlay" role="status" aria-live="polite" hidden>
 				<div id="meta-overlay-content" class="meta-overlay-content"></div>
@@ -77,6 +70,15 @@
 			<div id="user-response-panel" class="user-reponse-wrapper user-response-wrapper"></div>
 		</footer>
 	</div>
+
+	<dialog id="menu-dialog" class="chat-dialog menu-dialog">
+		<div class="menu-dialog-header">
+			<h2 class="modal-title content-container">Menu</h2>
+			<button type="button" class="photo-picker-close" data-menu-close aria-label="Close">&times;</button>
+		</div>
+		<div id="left-sidebar-container" class="content-container menu-section"></div>
+		<div id="right-sidebar-container" class="content-container menu-section"></div>
+	</dialog>
 
 	<dialog id="photo-picker" class="chat-dialog photo-picker">
 		<div class="photo-picker-header">

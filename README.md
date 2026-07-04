@@ -20,7 +20,8 @@ This is a modernized fork of [phivk/trialogue](https://github.com/phivk/trialogu
 - Message reactions: speakers can tapback the player's messages, and players can react as a choice.
 - Thread clearing for flashbacks and scene changes (`clear` tag + timestamp chips).
 - Timestamp chips, speaker profiles (display names, avatar images, bubble colors), optional message sounds, and a tab-title unread badge.
-- Refined typing indicator, message entrance animations (disabled for players who prefer reduced motion), and automatic dark mode.
+- Refined typing indicator, message entrance animations (disabled for players who prefer reduced motion), and automatic dark mode with a player-facing theme toggle.
+- The story renders as a phone: full-bleed on mobile, a centered phone-width frame on larger screens.
 
 **A more robust format**
 
@@ -281,7 +282,7 @@ Override CSS variables from your story stylesheet:
 }
 ```
 
-Dark mode follows the player's system preference automatically; force a scheme with `<html data-theme="dark">` (or `light`). The Trialogue 1.x variable names (`--bg-color`, `--user-color`, `--passage-bg-color`, `--passage-text-color`, `--navbar-bg-color`, `--speaker-color`) are still honored.
+Dark mode follows the player's system preference until they pick a side with the header's sun/moon toggle — their choice is remembered per story (hide the toggle with `story.config.themeToggle = false`). Authors can force a scheme with `<html data-theme="dark">` (or `light`). The Trialogue 1.x variable names (`--bg-color`, `--user-color`, `--passage-bg-color`, `--passage-text-color`, `--navbar-bg-color`, `--speaker-color`) are still honored, and `--t-page-bg` themes the page behind the phone frame.
 
 Style an individual speaker by targeting its `data-speaker` attribute:
 
@@ -297,18 +298,18 @@ Style an individual speaker by targeting its `data-speaker` attribute:
 
 ### Page chrome helpers
 
-Call these from your story JavaScript to fill in the page around the chat:
+The story presents as a phone — a single chat column, full-bleed on small screens and a framed phone-width card on larger ones (width via `--t-chat-width`). Supplementary content lives in a Menu modal; fill it from your story JavaScript:
 
 ```js
-inject_left_sidebar('<h3>About</h3><p>…</p>');   // desktop-only left column
-inject_right_sidebar('<p>…</p>');                // right column / mobile drawer
+inject_left_sidebar('<h3>About</h3><p>…</p>');   // first section of the Menu modal
+inject_right_sidebar('<p>Credits…</p>');         // second section of the Menu modal
+inject_nav_menu('about');                        // custom label for the Menu button
 inject_hint('Choose an option to continue');     // text above the choices
 inject_modal('Leave?', '<p>Progress will be lost.</p>', '<button data-dismiss="modal">Stay</button>');
 inject_nav_back('← back');                       // shows a back link in the header
-inject_nav_menu('menu');                         // custom label for the drawer button
 ```
 
-The header always includes an Undo button (appears once there is something to undo) and a Restart button that asks for confirmation.
+(The `inject_*_sidebar` names are kept from Trialogue 1.x, which rendered them as desktop side columns; the Menu button only appears once one of them has content.) The header always includes an Undo button (appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
 
 ### Saving
 

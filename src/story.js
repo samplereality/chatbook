@@ -30,6 +30,27 @@ var PIN_SVG =
 	'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>' +
 	'<circle cx="12" cy="10" r="3"></circle></svg>';
 
+/* Feather Icons moon & sun (MIT) */
+var MOON_SVG =
+	'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+
+var SUN_SVG =
+	'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<circle cx="12" cy="12" r="5"></circle>' +
+	'<line x1="12" y1="1" x2="12" y2="3"></line>' +
+	'<line x1="12" y1="21" x2="12" y2="23"></line>' +
+	'<line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>' +
+	'<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>' +
+	'<line x1="1" y1="12" x2="3" y2="12"></line>' +
+	'<line x1="21" y1="12" x2="23" y2="12"></line>' +
+	'<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>' +
+	'<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+
 var PLAY_SVG =
 	'<svg viewBox="0 0 24 24" width="16" height="16" ' +
 	'fill="currentColor" aria-hidden="true">' +
@@ -194,6 +215,8 @@ var Story = function() {
 		/* app-name label on notification-style narration
 		   (defaults to the story name) */
 		metaNotificationLabel: '',
+		/* show the light/dark toggle in the header */
+		themeToggle: true,
 		/* default label on a location-share response button */
 		locationButtonLabel: 'Share my location',
 		/* label under the map card of a shared player location */
@@ -301,7 +324,8 @@ Object.assign(Story.prototype, {
 			metaNotification: byId('meta-notification'),
 			metaNotificationLabel: byId('meta-notification-label'),
 			metaNotificationBody: byId('meta-notification-body'),
-			rightSidebar: document.querySelector('.right-sidebar')
+			menuDialog: byId('menu-dialog'),
+			theme: byId('nav-link-theme')
 		};
 
 		// tapping a notification banner dismisses it (but interactive
@@ -373,11 +397,23 @@ Object.assign(Story.prototype, {
 			}
 		});
 
-		// menu button toggles the right sidebar on small screens
+		// menu button opens the menu modal
 
 		this.dom.menu.addEventListener('click', function() {
-			story.dom.rightSidebar.classList.toggle('open');
+			if (typeof story.dom.menuDialog.showModal === 'function') {
+				story.dom.menuDialog.showModal();
+			}
 		});
+
+		this.dom.menuDialog.addEventListener('click', function(event) {
+			if (
+				event.target === story.dom.menuDialog ||
+				event.target.closest('[data-menu-close]')
+			) {
+				story.dom.menuDialog.close();
+			}
+		});
+
 
 		// photo picker: close button and backdrop click both dismiss
 
@@ -496,6 +532,8 @@ Object.assign(Story.prototype, {
 		});
 
 		// apply config that user scripts may have changed
+
+		this.initTheme();
 
 		if (this.dom.pickerTitle) {
 			this.dom.pickerTitle.textContent = this.config.photoPickerTitle;
@@ -2046,6 +2084,85 @@ Object.assign(Story.prototype, {
 
 		this.unseen += 1;
 		document.title = '(' + this.unseen + ') ' + this.name;
+	},
+
+	/**
+	 Sets up the header light/dark toggle. Dark mode follows the
+	 player's system preference until they choose explicitly here;
+	 their choice is remembered per story.
+	**/
+
+	initTheme: function() {
+		var story = this;
+		var button = this.dom.theme;
+
+		if (!this.config.themeToggle) {
+			button.hidden = true;
+			return;
+		}
+
+		var saved = null;
+
+		try {
+			saved = window.localStorage.getItem(this.themeKey());
+		}
+		catch (e) { /* storage unavailable */ }
+
+		if (saved === 'light' || saved === 'dark') {
+			document.documentElement.setAttribute('data-theme', saved);
+		}
+
+		var effectiveTheme = function() {
+			var explicit = document.documentElement.getAttribute('data-theme');
+
+			if (explicit === 'light' || explicit === 'dark') {
+				return explicit;
+			}
+
+			return window.matchMedia &&
+				window.matchMedia('(prefers-color-scheme: dark)').matches
+				? 'dark'
+				: 'light';
+		};
+
+		var updateIcon = function() {
+			var dark = effectiveTheme() === 'dark';
+
+			button.innerHTML = dark ? SUN_SVG : MOON_SVG;
+			button.setAttribute(
+				'title',
+				dark ? 'Switch to light mode' : 'Switch to dark mode'
+			);
+			button.setAttribute(
+				'aria-label',
+				dark ? 'Switch to light mode' : 'Switch to dark mode'
+			);
+		};
+
+		button.addEventListener('click', function() {
+			var next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+
+			document.documentElement.setAttribute('data-theme', next);
+
+			try {
+				window.localStorage.setItem(story.themeKey(), next);
+			}
+			catch (e) { /* storage unavailable */ }
+
+			updateIcon();
+		});
+
+		if (window.matchMedia) {
+			window
+				.matchMedia('(prefers-color-scheme: dark)')
+				.addEventListener('change', updateIcon);
+		}
+
+		updateIcon();
+	},
+
+	themeKey: function() {
+		return 'trialogue-theme-' + this.ifid;
 	},
 
 	/**

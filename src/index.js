@@ -36,22 +36,27 @@ window.inject_nav_menu = function(htmlContent) {
 	}
 };
 
-window.inject_left_sidebar = function(htmlContent) {
-	setContent('#left-sidebar-container', htmlContent);
-	document.querySelector('.left-sidebar').classList.add('has-content');
-};
+/*
+ * Sidebar content now lives in the menu modal (the 1.x sidebars are
+ * gone); both helpers fill a section of it and reveal the Menu button.
+ */
 
-window.inject_right_sidebar = function(htmlContent) {
-	setContent('#right-sidebar-container', htmlContent);
-	document.querySelector('.right-sidebar').classList.add('has-content');
-
-	// the menu button opens the sidebar on small screens
+function injectMenuSection(selector, htmlContent) {
+	setContent(selector, htmlContent);
 
 	var menu = document.getElementById('nav-link-menu');
 
 	if (menu.hidden) {
 		menu.hidden = false;
 	}
+}
+
+window.inject_left_sidebar = function(htmlContent) {
+	injectMenuSection('#left-sidebar-container', htmlContent);
+};
+
+window.inject_right_sidebar = function(htmlContent) {
+	injectMenuSection('#right-sidebar-container', htmlContent);
 };
 
 window.inject_hint = function(htmlContent) {
