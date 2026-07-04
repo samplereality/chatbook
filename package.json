@@ -4,7 +4,7 @@
   "description": "A chat-style story format for Twine 2",
   "author": "Philo van Kemenade",
   "license": "MIT",
-  "repository": "https://github.com/samplereality/trilogue-relog",
+  "repository": "https://github.com/samplereality/chatbook",
   "config": {
     "formatName": "Chatbook",
     "distDir": "dist/"
