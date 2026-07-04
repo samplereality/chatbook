@@ -1,19 +1,19 @@
 :: StoryData
 {
   "ifid": "B4A595DB-0D82-4652-99AD-6C801B0F1510",
-  "format": "Chatbook",
+  "format": "Subtext",
   "format-version": "2.0.0"
 }
 
 :: StoryTitle
-Chatbook Demo
+Subtext Demo
 
 :: StorySubtitle
 an interactive chat story
 
 :: Story JavaScript [script]
 
-var menuContent              = '<h3>Welcome</h3><p>Thanks for trying out <a href="https://github.com/samplereality/chatbook">Chatbook</a>.</p><p>Anything passed to <span style="font-family: monospace;">inject_menu()</span> in your Story JavaScript appears here.</p>';
+var menuContent              = '<h3>Welcome</h3><p>Thanks for trying out <a href="https://github.com/samplereality/subtext">Subtext</a>.</p><p>Anything passed to <span style="font-family: monospace;">inject_menu()</span> in your Story JavaScript appears here.</p>';
 var userResponseHintContent  = 'Choose an option to continue the conversation';
 
 inject_menu(menuContent);
@@ -97,7 +97,7 @@ rainy: data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0
 :: not so well [speaker-1]
 maybe this will brighten up your day!
 
-<img src="https://picsum.photos/seed/chatbook/800/500" alt="a random photo">
+<img src="https://picsum.photos/seed/subtext/800/500" alt="a random photo">
 
 [[start over?->Start]]
 

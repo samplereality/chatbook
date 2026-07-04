@@ -1,11 +1,11 @@
 <svg width="150" height="150" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="chatbook-bg" x1="75" y1="0" x2="75" y2="150" gradientUnits="userSpaceOnUse">
+    <linearGradient id="subtext-bg" x1="75" y1="0" x2="75" y2="150" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#58AEFF"/>
       <stop offset="1" stop-color="#0668D8"/>
     </linearGradient>
   </defs>
-  <rect width="150" height="150" rx="33" fill="url(#chatbook-bg)"/>
+  <rect width="150" height="150" rx="33" fill="url(#subtext-bg)"/>
   <!-- incoming bubble: a page of text (the book) -->
   <path d="M24 50 Q24 34 40 34 H82 Q98 34 98 50 V64 Q98 80 82 80 H29 Q24 80 24 75 Z" fill="#FFFFFF"/>
   <rect x="36" y="45" width="44" height="7" rx="3.5" fill="#9FC3F5"/>

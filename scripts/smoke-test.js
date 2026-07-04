@@ -11,7 +11,7 @@
 const path = require('path');
 const { chromium } = require('playwright');
 
-const DEMO = path.join(__dirname, '..', 'docs', 'chatbook-demo.html');
+const DEMO = path.join(__dirname, '..', 'docs', 'subtext-demo.html');
 const SHOT_DIR = process.env.SMOKE_SHOT_DIR || '';
 
 let failures = 0;
@@ -80,7 +80,7 @@ async function run() {
 			subtree: true
 		});
 	});
-	check('title shown', (await page.textContent('#ptitle')) === 'Chatbook Demo');
+	check('title shown', (await page.textContent('#ptitle')) === 'Subtext Demo');
 	check(
 		'start passage split into two bubbles',
 		(await page.locator('.chat-passage[data-speaker="1"]').count()) === 2
@@ -142,7 +142,7 @@ async function run() {
 		'theme choice persisted per story',
 		await page.evaluate(() =>
 			Object.keys(window.localStorage).some(function(key) {
-				return key.indexOf('chatbook-theme-') === 0;
+				return key.indexOf('subtext-theme-') === 0;
 			})
 		)
 	);
@@ -158,7 +158,7 @@ async function run() {
 	await page.evaluate(() => {
 		document.documentElement.removeAttribute('data-theme');
 		Object.keys(window.localStorage).forEach(function(key) {
-			if (key.indexOf('chatbook-theme-') === 0) {
+			if (key.indexOf('subtext-theme-') === 0) {
 				window.localStorage.removeItem(key);
 			}
 		});
@@ -392,7 +392,7 @@ async function run() {
 	});
 	check(
 		'title resets when the tab becomes visible',
-		(await page.title()) === 'Chatbook Demo'
+		(await page.title()) === 'Subtext Demo'
 	);
 
 	console.log('location sharing');
@@ -474,7 +474,7 @@ async function run() {
 	check(
 		'notification banner is labeled with the story name',
 		(await page.locator('#meta-notification-label').textContent()) ===
-			'Chatbook Demo'
+			'Subtext Demo'
 	);
 
 	if (SHOT_DIR) {

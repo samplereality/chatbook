@@ -19,14 +19,14 @@ const pkg = require('../package.json');
 
 const ROOT = path.join(__dirname, '..');
 const SITE = path.join(ROOT, 'site');
-const PAGES_URL = 'https://samplereality.github.io/chatbook';
+const PAGES_URL = 'https://samplereality.github.io/subtext';
 
 marked.setOptions({ gfm: true });
 
 // README, minus the logo/title header (the site has its own hero)
 
 let readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-const introAt = readme.indexOf('Chatbook is a story format');
+const introAt = readme.indexOf('Subtext is a story format');
 
 if (introAt !== -1) {
 	readme = readme.slice(introAt);
@@ -94,19 +94,19 @@ const page = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chatbook — a chat story format for Twine</title>
-<meta name="description" content="Chatbook turns a branching Twine story into a modern text-message exchange: bubbles, typing indicators, photos, voice memos, locations, reactions, and read receipts.">
+<title>Subtext — a chat story format for Twine</title>
+<meta name="description" content="Subtext turns a branching Twine story into a modern text-message exchange: bubbles, typing indicators, photos, voice memos, locations, reactions, and read receipts.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>${css}</style>
 </head>
 <body>
 <header class="hero">
 	<img src="icon.svg" alt="">
-	<h1>Chatbook</h1>
+	<h1>Subtext</h1>
 	<p class="tagline">A story format for Twine 2 that turns a branching narrative into a modern text-message exchange.</p>
 	<div class="actions">
 		<a class="btn" href="demo.html">Play the demo</a>
-		<a class="btn btn--ghost" href="https://github.com/samplereality/chatbook">GitHub</a>
+		<a class="btn btn--ghost" href="https://github.com/samplereality/subtext">GitHub</a>
 	</div>
 	<div class="install">
 		<div class="label">Add to Twine via Twine → Story Formats → Add a New Format:</div>
@@ -114,13 +114,13 @@ const page = `<!DOCTYPE html>
 	</div>
 </header>
 <section class="try">
-	<iframe src="demo.html" title="Playable Chatbook demo" loading="lazy"></iframe>
+	<iframe src="demo.html" title="Playable Subtext demo" loading="lazy"></iframe>
 </section>
 <p class="try-hint">The demo, live. It's a phone — tap the replies.</p>
 <main>
 ${docsHtml}
 </main>
-<footer>Chatbook ${pkg.version} · MIT License</footer>
+<footer>Subtext ${pkg.version} · MIT License</footer>
 </body>
 </html>
 `;
@@ -129,11 +129,11 @@ fs.rmSync(SITE, { recursive: true, force: true });
 fs.mkdirSync(SITE, { recursive: true });
 fs.writeFileSync(path.join(SITE, 'index.html'), page);
 fs.copyFileSync(
-	path.join(ROOT, 'docs/chatbook-demo.html'),
+	path.join(ROOT, 'docs/subtext-demo.html'),
 	path.join(SITE, 'demo.html')
 );
 fs.copyFileSync(
-	path.join(ROOT, 'dist/Twine2/Chatbook/format.js'),
+	path.join(ROOT, 'dist/Twine2/Subtext/format.js'),
 	path.join(SITE, 'format.js')
 );
 fs.copyFileSync(path.join(ROOT, 'src/icon.svg'), path.join(SITE, 'icon.svg'));

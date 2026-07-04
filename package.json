@@ -1,12 +1,12 @@
 {
-  "name": "chatbook",
+  "name": "subtext",
   "version": "2.0.0",
   "description": "A chat-style story format for Twine 2",
   "author": "Philo van Kemenade",
   "license": "MIT",
-  "repository": "https://github.com/samplereality/chatbook",
+  "repository": "https://github.com/samplereality/subtext",
   "config": {
-    "formatName": "Chatbook",
+    "formatName": "Subtext",
     "distDir": "dist/"
   },
   "scripts": {
