@@ -1,373 +1,496 @@
 /**
  An object representing the entire story. After the document has completed
- loading, an instance of this class will be available at `window.story`.
-
- @class Story
- @constructor
+ loading, an instance of this class is available at `window.story`.
 **/
 
 'use strict';
-var $ = require('jquery');
-var _ = require('underscore');
 var LZString = require('lz-string');
+var Passage = require('./passage');
+var template = require('./template');
 
-var Story = function() {
-	//Find the story and infer the Twine version.
+var SPEAKER_TAG_PREFIX = 'speaker-';
+var PHOTO_LINK_PREFIX = 'photo:';
+var LOCATION_LINK_PREFIX = 'location:';
+var REACT_LINK_PREFIX = 'react:';
 
-	var el, twVersion, selectorAuthor, selectorCSS, selectorScript, selectorSubtitle;
+/* Feather Icons camera (MIT) */
+var CAMERA_SVG =
+	'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 ' +
+	'2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>' +
+	'<circle cx="12" cy="13" r="4"></circle></svg>';
 
-	if ($('tw-storydata').length > 0) {
-		el = $('tw-storydata');
-		twVersion = 2;
-		selectorAuthor = 'tw-passagedata[name=StoryAuthor]';
-		selectorCSS = '*[type="text/twine-css"]';
-		selectorScript = '*[type="text/twine-javascript"]';
-		selectorSubtitle = 'tw-passagedata[name=StorySubtitle]';
-	} else {
-		el = $('#storeArea');
-		twVersion = 1;
-		selectorAuthor = 'div[tiddler=StoryAuthor]';
-		selectorCSS = '*[tags*="stylesheet"]';
-		selectorScript = '*[tags*="script"]';
-		selectorSubtitle = 'div[tiddler=StorySubtitle]';
+/* Feather Icons map-pin (MIT) */
+var PIN_SVG =
+	'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>' +
+	'<circle cx="12" cy="10" r="3"></circle></svg>';
+
+/* Feather Icons moon & sun (MIT) */
+var MOON_SVG =
+	'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+
+var SUN_SVG =
+	'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+	'stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+	'stroke-linejoin="round" aria-hidden="true">' +
+	'<circle cx="12" cy="12" r="5"></circle>' +
+	'<line x1="12" y1="1" x2="12" y2="3"></line>' +
+	'<line x1="12" y1="21" x2="12" y2="23"></line>' +
+	'<line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>' +
+	'<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>' +
+	'<line x1="1" y1="12" x2="3" y2="12"></line>' +
+	'<line x1="21" y1="12" x2="23" y2="12"></line>' +
+	'<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>' +
+	'<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+
+var PLAY_SVG =
+	'<svg viewBox="0 0 24 24" width="16" height="16" ' +
+	'fill="currentColor" aria-hidden="true">' +
+	'<path d="M7 4.5v15l13-7.5z"></path></svg>';
+
+var PAUSE_SVG =
+	'<svg viewBox="0 0 24 24" width="16" height="16" ' +
+	'fill="currentColor" aria-hidden="true">' +
+	'<rect x="6" y="4.5" width="4" height="15" rx="1"></rect>' +
+	'<rect x="14" y="4.5" width="4" height="15" rx="1"></rect></svg>';
+
+function byId(id) {
+	return document.getElementById(id);
+}
+
+function deepClone(value) {
+	try {
+		return JSON.parse(JSON.stringify(value));
+	}
+	catch (e) {
+		return value;
+	}
+}
+
+function dispatch(name, detail) {
+	window.dispatchEvent(new CustomEvent(name, { detail: detail || {} }));
+}
+
+/**
+ Picks black or white text for a hex background color (YIQ brightness).
+ Returns null for non-hex values, leaving the theme default in place.
+**/
+
+function contrastColor(color) {
+	var match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+
+	if (!match) {
+		return null;
 	}
 
-	// set up basic properties
+	var hex = match[1];
+
+	if (hex.length === 3) {
+		hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+	}
+
+	var r = parseInt(hex.substr(0, 2), 16);
+	var g = parseInt(hex.substr(2, 2), 16);
+	var b = parseInt(hex.substr(4, 2), 16);
+	var yiq = (r * 299 + g * 587 + b * 114) / 1000;
+
+	return yiq >= 145 ? '#111114' : '#ffffff';
+}
+
+var Story = function() {
+	var el = document.querySelector('tw-storydata');
+
+	if (!el) {
+		throw new Error(
+			'Chatbook could not find a <tw-storydata> element. ' +
+			'(Twine 1 documents are no longer supported.)'
+		);
+	}
 
 	this.el = el;
 
-	/**
-	 The name of the story.
-	 @property name
-	 @type String
-	 @readonly
-	**/
+	/** The name of the story. **/
+	this.name = el.getAttribute('name') || '';
 
-	this.name = twVersion == 2 ? el.attr('name') : el.find("div[tiddler=StoryTitle]").text();
+	/** The story's IFID, used to key autosaves. **/
+	this.ifid = el.getAttribute('ifid') || '';
 
-	/**
-	 The subtitle of the story.
-	 @property subtitle
-	 @type String
-	 @readonly
-	**/
+	/** The ID of the first passage to be displayed. **/
+	this.startPassage = parseInt(el.getAttribute('startnode'), 10);
 
-	this.subtitle = el.find(selectorSubtitle).html();
-
-	/**
-	 The name of the author.
-	 @property author
-	 @type String
-	 @readonly
-	**/
-
-	this.author = el.find(selectorAuthor).text();
-
-	/**
-	 The ID of the first passage to be displayed.
-	 @property startPassage
-	 @type Number
-	 @readonly
-	**/
-
-	this.startPassage = twVersion == 2 ? parseInt(el.attr('startnode')) : $('[tiddler=Start]').index();
-
-	/**
-	 The program that created this story.
-
-	 @property creator
-	 @type String
-	 @readonly
-	**/
-
-	this.creator = el.attr('creator');
-
-	/**
-	 The version of the program used to create this story.
-
-	 @property creatorVersion
-	 @type String
-	 @readOnly
-	**/
-
-	this.creatorVersion = el.attr('creator-version');
-	
-	// initialize history and state
-
-	/**
-	 An array of passage IDs, one for each passage viewed during the current
-	 session.
-
-	 @property history
-	 @type Array
-	 @readOnly
-	**/
-
-	this.history = [];
-
-	/**
-	 An array of passages as jq objects, one for each passage viewed 
-	 during the current
-	 session.
-
-	 @property history_dom
-	 @type Array
-	 @readOnly
-	**/
-
-	this.history_dom = [];
-
-	/**
-	 An array of passages (jQ objects), one for each passage viewed 
-	 since the last response.
-
-	 @property recent_dom
-	 @type Array
-	**/
-
-	this.recent_dom = [];
-
-	/**
-   An array of passage IDs, one for each passage viewed since 
-	 the last response.
-
-   @property recent
-   @type Array
-  **/
-
-  this.recent = [];
+	/** The program that created this story, and its version. **/
+	this.creator = el.getAttribute('creator');
+	this.creatorVersion = el.getAttribute('creator-version');
 
 	/**
 	 An object that stores data that persists across a single user session.
-	 Any other variables will not survive the user pressing back or forward.
-
-	 @property state
-	 @type Object
 	**/
-
 	this.state = {};
 
 	/**
-	 An array of {history, history_dom, state} pairs for use in the
-	 undo history.
-
-	 @property undoHistory
-	 @type Array
+	 An ordered record of everything rendered in the chat: passages the
+	 speakers sent and responses the user chose. This is what gets saved
+	 and what restore() replays.
+	 Entries: { t: 'p', id: <passage id> } or { t: 'u', text: <string> }
 	**/
-
-	this.undoHistory = [];
+	this.timeline = [];
 
 	/**
-	 If set to true, then any JavaScript errors are ignored -- normally, play
-	 would end with a message shown to the user. 
-
-	 @property ignoreErrors
-	 @type Boolean
+	 An array of passage IDs viewed this session (kept for compatibility
+	 with Trialogue 1.x scripts that read story.history).
 	**/
+	this.history = [];
 
+	/**
+	 Undo checkpoints, one pushed per user choice.
+	**/
+	this.checkpoints = [];
+
+	/**
+	 If true, JavaScript errors are ignored instead of shown in the chat.
+	**/
 	this.ignoreErrors = false;
 
 	/**
-	 The message shown to users when there is an error and ignoreErrors is not
-	 true. Any %s in the message will be interpolated as the actual error
-	 messsage.
-
-	 @property errorMessage
-	 @type String
+	 Message shown when an error occurs; %s is replaced by the error text.
 	**/
-
-	this.errorMessage = '\u26a0 %s';
-
-	// create passage objects
+	this.errorMessage = '⚠ %s';
 
 	/**
-	 An array of all passages, indexed by ID.
-
-	 @property passages
-	 @type Array
+	 Tunable behavior. Adjust from your story's JavaScript, e.g.:
+	   story.config.maxTypingDelay = 2500;
+	   story.config.splitBubbles = false;
+	   story.config.autosave = true;
 	**/
+	this.config = {
+		/* show the typing indicator before speaker passages */
+		typing: true,
+		/* simulated typing speed */
+		msPerChar: 20,
+		minTypingDelay: 500,
+		maxTypingDelay: 4000,
+		/* delay before meta (speakerless) passages appear */
+		metaDelay: 800,
+		/* render each paragraph of a passage as its own bubble */
+		splitBubbles: true,
+		/* stagger between bubbles of the same passage, in ms */
+		bubbleStagger: 140,
+		/* persist progress to localStorage after every message */
+		autosave: false,
+		/* warm the browser cache for StoryImages entries at startup */
+		preloadImages: true,
+		/* accessible label on the camera button */
+		photoButtonLabel: 'Send a photo',
+		/* heading of the photo picker */
+		photoPickerTitle: 'Send a photo',
+		/* show Delivered/Read status under the player's last message */
+		readReceipts: true,
+		/* a speaker's reply automatically marks the last message read */
+		autoRead: true,
+		/* receipt wording (localize or restyle here) */
+		receiptLabels: {
+			delivered: 'Delivered',
+			read: 'Read',
+			failed: 'Not Delivered'
+		},
+		/* subtle send/receive sounds (opt-in; requires a user gesture) */
+		sounds: false,
+		/* show "(2) Story Name" in the tab title while it is hidden */
+		titleNotifications: true,
+		/* where speakerless (narrator) passages appear:
+		   'chat'         - centered system text inside the conversation
+		   'overlay'      - a narration veil over the blurred chat
+		   'notification' - a phone-style notification banner
+		   Override per passage with the tags meta-chat / meta-overlay /
+		   meta-notification. */
+		metaStyle: 'chat',
+		/* app-name label on notification-style narration
+		   (defaults to the story name) */
+		metaNotificationLabel: '',
+		/* show the light/dark toggle in the header */
+		themeToggle: true,
+		/* default label on a location-share response button */
+		locationButtonLabel: 'Share my location',
+		/* label under the map card of a shared player location */
+		locationBubbleLabel: 'My location'
+	};
 
+	/**
+	 Speaker profiles, parsed from the StorySpeakers passage. Entries are
+	 { name, avatar, color } keyed by speaker id; also scriptable via
+	 `story.speakers`.
+	**/
+	this.speakers = {};
+
+	/** Messages received while the tab was hidden. **/
+	this.unseen = 0;
+
+	this._audioCtx = null;
+	this._playingAudio = null;
+
+	/** Applied reactions, so undo can revert them. **/
+	this._reactionLog = [];
+
+	/**
+	 The story's image gallery, parsed from the StoryImages passage
+	 (one `name: url` per line). Add or change entries from your story
+	 JavaScript via `story.gallery`.
+	**/
+	this.gallery = {};
+
+	/** Pending setTimeout ids for the current delayed passage. **/
+	this.timers = [];
+
+	this._speakerHues = {};
+
+	/** An array of all passages, indexed by ID. **/
 	this.passages = [];
-
-	/**
-	 A number representing the ID of the setTimeout() timer for a
-	 typing event.
-
-	 @property delayedTypingEvent
-	 @type Number
-	**/
-
-	this.delayedTypingEvent = null;
-
-	/**
-	 A number representing the ID of the setTimeout() timer for
-	 a passage display event.
-
-	 @property delayedPassageEvent
-	 @type Number
-	**/
-
-	this.delayedPassageEvent = null;
-
-	/**
-	 The maximum amount of time in milliseconds that a passage will be delayed
-
-	 @property maxPassageDelay
-	 @type Number
-	**/
-
-	this.maxPassageDelay = 10000;
 
 	var p = this.passages;
 
-	if (twVersion == 2) {
-		el.children('tw-passagedata').each(function(el) {
-			var $t = $(this);
-			var id = parseInt($t.attr('pid'));
-			var tags = $t.attr('tags');
-			
-			p[id] = new Passage(
-				id,
-				$t.attr('name'),
-				(tags !== '' && tags !== undefined) ? tags.split(' ') : [],
-				$t.html()
-			);
-		});
-	} else {
-		el.children('*[tiddler]').each(function (index,el) {
-			var $t = $(el);
-			var id = index;
-			var tags = $.trim($t.attr('tags'));
+	el.querySelectorAll('tw-passagedata').forEach(function(pEl) {
+		var id = parseInt(pEl.getAttribute('pid'), 10);
+		var tags = (pEl.getAttribute('tags') || '').trim();
 
-			p[id] = new Passage(
-				id,
-				$t.attr('tiddler'),
-				(tags !== '' && tags !== undefined) ? tags.split(' ') : [],
-				$t.html().replace(/\\n/g, '\n')
-			);
+		p[id] = new Passage(
+			id,
+			pEl.getAttribute('name'),
+			tags !== '' ? tags.split(/\s+/) : [],
+			pEl.innerHTML
+		);
+	});
 
-		});
+	/** User-provided scripts and styles, run/added at start. **/
 
-		$('title').html(this.name);
-		$('#ptitle').html(this.name);
-
-	}
-
-	/**
-	 An array of user-specific scripts to run when the story is begun.
-
-	 @property userScripts
-	 @type Array
-	**/
-
-	this.userScripts = _.map(
-		el.children(selectorScript),
-		function(el) {
-			return $(el).html();
-		}
+	this.userScripts = Array.prototype.map.call(
+		el.querySelectorAll('*[type="text/twine-javascript"]'),
+		function(n) { return n.textContent; }
 	);
 
-	/**
-	 An array of user-specific style declarations to add when the story is begun.
-
-	 @property userStyles
-	 @type Array
-	**/
-
-	this.userStyles = _.map(
-		el.children(selectorCSS),
-		function(el) {
-			return $(el).html();
-		}
+	this.userStyles = Array.prototype.map.call(
+		el.querySelectorAll('*[type="text/twine-css"]'),
+		function(n) { return n.textContent; }
 	);
 };
 
-_.extend(Story.prototype, {
+/**
+ Legacy alias for config.maxTypingDelay (Trialogue 1.x exposed
+ story.maxPassageDelay).
+**/
+
+Object.defineProperty(Story.prototype, 'maxPassageDelay', {
+	get: function() {
+		return this.config.maxTypingDelay;
+	},
+	set: function(value) {
+		this.config.maxTypingDelay = value;
+	}
+});
+
+Object.assign(Story.prototype, {
 	/**
 	 Begins playing this story.
-
-	 @method start
 	**/
 
 	start: function() {
-		// Initialize special passages.
-		$('#psubtitle').html(this.subtitle);
-		if (this.author)
-			$('#pauthor').html(' by ' + this.author);
+		this.dom = {
+			panel: byId('chat-panel'),
+			history: byId('phistory'),
+			passage: byId('passage'),
+			typing: byId('animation-container'),
+			responses: byId('user-response-panel'),
+			hint: byId('user-response-hint'),
+			title: byId('ptitle'),
+			subtitle: byId('psubtitle'),
+			author: byId('pauthor'),
+			undo: byId('nav-link-undo'),
+			restart: byId('nav-link-restart'),
+			back: byId('nav-link-back'),
+			menu: byId('nav-link-menu'),
+			dialog: byId('exit-dialog'),
+			picker: byId('photo-picker'),
+			pickerGrid: byId('photo-picker-grid'),
+			pickerTitle: byId('photo-picker-title'),
+			metaOverlay: byId('meta-overlay'),
+			metaOverlayContent: byId('meta-overlay-content'),
+			metaNotification: byId('meta-notification'),
+			metaNotificationLabel: byId('meta-notification-label'),
+			metaNotificationBody: byId('meta-notification-body'),
+			menuDialog: byId('menu-dialog'),
+			theme: byId('nav-link-theme')
+		};
 
-		// set up history event handler
+		// tapping a notification banner dismisses it (but interactive
+		// content inside it, like a voice memo, stays usable)
 
-		$('#nav-link-undo').on('click', function(event) {
-			var undoState = this.undoHistory.pop();
-
-			if (undoState) {
-				this.state = undoState.state;
-				this.history_dom = undoState.history_dom;
-				this.history = undoState.history;
-
-				/* undoHistory is only pushed to after a 
-				 * user response. To undo the visual history,
-				 * we need to remove elements not in
-				 * history_dom, then remove the previous 
-				 * element and show it again, to update the 
-				 * internal state and display user responses.
-				 */
-
-				this.clearUserResponses();
-				if (this.delayedTypingEvent !== null) {
-					clearTimeout(this.delayedTypingEvent);
-					this.delayedTypingEvent = null;
-				}
-				this.hideTyping();
-				if (this.delayedPassageEvent !== null) {
-					clearTimeout(this.delayedPassageEvent);
-					this.delayedPassageEvent = null;
-				}
-				$('#phistory').children()
-					.not(this.history_dom)
-					.remove();
-				$('#passage').children()
-					.not(this.history_dom)
-					.remove();
-				$('#phistory').children().last().remove();
-				this.show(this.history[this.history.length-1]);
-
-				if (this.undoHistory.length == 0) {
-					$('#nav-link-undo').css({'visibility': 'hidden'});
-				}
+		this.dom.metaNotification.addEventListener('click', function(event) {
+			if (!event.target.closest('button, a')) {
+				story.dom.metaNotification.hidden = true;
 			}
-		}.bind(this));
+		});
 
-		// set up passage link handler; don't handle historical links
+		this.gallery = this.parseGallery();
+		this.speakers = this.parseSpeakers();
 
-		$('body').on('click', 'a[data-passage]', function (e) {
-			if ($(e.target).closest('#phistory').length == 0) {
+		// header: title, subtitle, author
 
-				this.movePassageToHistory();
-				this.clearUserResponses();
-				this.showUserPassage($(e.target).text());
+		if (this.dom.title) {
+			this.dom.title.textContent = this.name;
+		}
 
-				// show new passage, without moving the current passage into history, as that has been done already
-				var targetName = $(e.target).closest('[data-passage]').attr('data-passage');
-				var passageDelay = this.getPassageDelay(targetName);
-				this.showDelayed(targetName, false, true);
+		var subtitle = this.passage('StorySubtitle');
+
+		if (subtitle && this.dom.subtitle) {
+			this.dom.subtitle.innerHTML = subtitle.source;
+		}
+
+		var author = this.passage('StoryAuthor');
+
+		if (author && author.source.trim() && this.dom.author) {
+			this.dom.author.textContent = ' by ' + author.source.trim();
+		}
+
+		// undo & restart buttons
+
+		this.dom.undo.addEventListener('click', this.undo.bind(this));
+
+		var story = this;
+		var openDialog = function(event) {
+			event.preventDefault();
+
+			if (typeof story.dom.dialog.showModal === 'function') {
+				story.dom.dialog.showModal();
 			}
-		}.bind(this));
+			else if (window.confirm('Restart the story?')) {
+				story.restart();
+			}
+		};
 
-		// set up hash change handler for save/restore
+		this.dom.restart.addEventListener('click', openDialog);
+		this.dom.back.addEventListener('click', openDialog);
 
-		$(window).on('hashchange', function() {
-			this.restore(window.location.hash.replace('#', ''));	
-		}.bind(this));
+		this.dom.dialog.addEventListener('click', function(event) {
+			var action = event.target.closest('[data-dialog-action]');
 
-		// set up error handler
+			if (action) {
+				if (action.getAttribute('data-dialog-action') === 'restart') {
+					story.restart();
+				}
+
+				story.dom.dialog.close();
+				return;
+			}
+
+			// Bootstrap-era compatibility: injected modal footers use
+			// data-dismiss="modal" for their close buttons.
+
+			if (event.target.closest('[data-dismiss="modal"]')) {
+				story.dom.dialog.close();
+			}
+		});
+
+		// menu button opens the menu modal
+
+		this.dom.menu.addEventListener('click', function() {
+			if (typeof story.dom.menuDialog.showModal === 'function') {
+				story.dom.menuDialog.showModal();
+			}
+		});
+
+		this.dom.menuDialog.addEventListener('click', function(event) {
+			if (
+				event.target === story.dom.menuDialog ||
+				event.target.closest('[data-menu-close]')
+			) {
+				story.dom.menuDialog.close();
+			}
+		});
+
+
+		// photo picker: close button and backdrop click both dismiss
+
+		this.dom.picker.addEventListener('click', function(event) {
+			if (
+				event.target === story.dom.picker ||
+				event.target.closest('[data-picker-close]')
+			) {
+				story.dom.picker.close();
+			}
+		});
+
+		// passage link handler; links inside the chat history are inert
+
+		document.body.addEventListener('click', function(event) {
+			var link = event.target.closest('[data-passage]');
+
+			if (!link || link.closest('#phistory')) {
+				return;
+			}
+
+			event.preventDefault();
+			story.choose(
+				link.getAttribute('data-passage'),
+				link.textContent.trim()
+			);
+		});
+
+		// audio can only start after a user gesture; unlock it on the
+		// first interaction so receive sounds work from then on
+
+		var resumeAudio = function() {
+			if (!story.config.sounds) {
+				return;
+			}
+
+			var Ctx = window.AudioContext || window.webkitAudioContext;
+
+			if (!story._audioCtx && Ctx) {
+				story._audioCtx = new Ctx();
+			}
+
+			if (story._audioCtx && story._audioCtx.state === 'suspended') {
+				story._audioCtx.resume();
+			}
+		};
+
+		document.addEventListener('pointerdown', resumeAudio);
+		document.addEventListener('keydown', resumeAudio);
+
+		// clear the title-bar unread badge when the tab becomes visible
+
+		document.addEventListener('visibilitychange', function() {
+			if (!document.hidden) {
+				story.unseen = 0;
+				document.title = story.name;
+			}
+		});
+
+		// hash change handler for save/restore
+
+		window.addEventListener('hashchange', function() {
+			var hash = window.location.hash.replace('#', '');
+
+			if (hash) {
+				story.restore(hash);
+			}
+		});
+
+		// error handler
 
 		window.onerror = function(message, url, line) {
-			if (! this.errorMessage || typeof(this.errorMessage) != 'string') {
-				this.errorMessage = Story.prototype.errorMessage;
+			if (!story.errorMessage || typeof story.errorMessage != 'string') {
+				story.errorMessage = Story.prototype.errorMessage;
 			}
 
-			if (!this.ignoreErrors) {
+			if (!story.ignoreErrors) {
 				if (url) {
 					message += ' (' + url;
 
@@ -378,302 +501,1999 @@ _.extend(Story.prototype, {
 					message += ')';
 				}
 
-				$('#passage').html(this.errorMessage.replace('%s', message));
+				story.showError(story.errorMessage.replace('%s', message));
 			}
-		}.bind(this);
+		};
 
 		// activate user styles
 
-		_.each(this.userStyles, function(style) {
-			$('body').append('<style>' + style + '</style>');
+		this.userStyles.forEach(function(style) {
+			var styleEl = document.createElement('style');
+
+			styleEl.textContent = style;
+			document.body.appendChild(styleEl);
 		});
 
 		// run user scripts
 
-		_.each(this.userScripts, function(script) {
-			eval(script);
+		this.userScripts.forEach(function(script) {
+			try {
+				/* eslint-disable no-eval */
+				eval(script);
+				/* eslint-enable no-eval */
+			}
+			catch (error) {
+				if (!story.ignoreErrors) {
+					story.showError(
+						story.errorMessage.replace('%s', error.message)
+					);
+				}
+			}
 		});
 
-		/**
-		 Triggered when the story is finished loading, and right before
-		 the first passage is displayed. The story property of this event
-		 contains the story.
+		// apply config that user scripts may have changed
 
-		 @event startstory
+		this.initTheme();
+
+		if (this.dom.pickerTitle) {
+			this.dom.pickerTitle.textContent = this.config.photoPickerTitle;
+		}
+
+		if (this.config.preloadImages) {
+			Object.keys(this.gallery).forEach(function(name) {
+				new Image().src = story.gallery[name];
+			});
+		}
+
+		/**
+		 Triggered when the story is finished loading, right before the
+		 first passage is displayed.
 		**/
 
-		$.event.trigger('startstory', { story: this });
+		dispatch('startstory', { story: this });
 
-		// try to restore based on the window hash if possible	
+		// restore from the URL hash, then from autosave, else start fresh
 
-		if (window.location.hash === '' ||
-			!this.restore(window.location.hash.replace('#', ''))) {
+		var hash = window.location.hash.replace('#', '');
 
-			this.show(this.startPassage);
+		if (hash !== '' && this.restore(hash)) {
+			return;
 		}
+
+		if (this.config.autosave && this.ifid) {
+			var saved = null;
+
+			try {
+				saved = window.localStorage.getItem(this.saveKey());
+			}
+			catch (e) { /* storage unavailable */ }
+
+			if (saved && this.restore(saved)) {
+				return;
+			}
+		}
+
+		this.show(this.startPassage);
 	},
 
 	/**
 	 Returns the Passage object corresponding to either an ID or name.
-	 If none exists, then it returns null.
-
-	 @method passage
-	 @param idOrName {String or Number} ID or name of the passage
-	 @return Passage object or null
+	 If none exists, returns null.
 	**/
 
 	passage: function(idOrName) {
-		if (_.isNumber(idOrName)) {
-			return this.passages[idOrName];
+		if (typeof idOrName === 'number') {
+			return this.passages[idOrName] || null;
 		}
-		else if (_.isString(idOrName)) {
-			return _.findWhere(this.passages, { name: idOrName });
-		}
-	},
 
-	/**
-	 Displays a passage on the page, replacing the current one. If
-	 there is no passage by the name or ID passed, an exception is raised.
-
-	 Calling this immediately inside a passage (i.e. in its source code) will
-	 *not* display the other passage. Use Story.render() instead.
-
-	 @method show
-	 @param idOrName {String or Number} ID or name of the passage
-	 @param noHistory {Boolean} if true, then this will not be recorded in the story history
-	**/
-
-	show: function(idOrName, noHistory, noMove) {
-		var passage = this.passage(idOrName);
-
-		if (!passage) {
-			throw new Error(
-				'There is no passage with the ID or name "' + idOrName + '"'
+		if (typeof idOrName === 'string') {
+			return (
+				this.passages.find(function(p) {
+					return p && p.name === idOrName;
+				}) || null
 			);
 		}
 
-		/**
-		 Triggered whenever a passage is about to be replaced onscreen with another.
-		 The passage being hidden is stored in the passage property of the event.
+		return null;
+	},
 
-		 @event hidepassage
+	/**
+	 Handles the user choosing a response: checkpoints the current state,
+	 renders the choice as an outgoing message and shows the target
+	 passage after a typing delay.
+	**/
+
+	choose: function(targetName, displayText) {
+		if (!this.passage(targetName)) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no passage named "' + targetName + '"'
+				)
+			);
+			return;
+		}
+
+		this.movePassageToHistory();
+		this.pushCheckpoint();
+		this.hideMeta();
+		this.clearUserResponses();
+		this.showUserBubble(displayText);
+		this.playSound('send');
+		this.showDelayed(targetName, { noMove: true });
+	},
+
+	/**
+	 Displays a passage, appending it to the chat. If there is no passage
+	 by the given name or ID, an error message is shown in the chat.
+
+	 Options:
+	   noMove  - don't move the current passage into history first
+	   record  - if false, don't record this passage in the timeline
+	   instant - skip entrance animations (used when restoring)
+	**/
+
+	show: function(idOrName, opts) {
+		opts = opts || {};
+
+		var passage = this.passage(idOrName);
+
+		if (!passage) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no passage with the ID or name "' + idOrName + '"'
+				)
+			);
+			return;
+		}
+
+		/**
+		 Triggered when a passage is about to be hidden/shown.
 		**/
 
-		$.event.trigger('hidepassage', { passage: window.passage });
+		dispatch('hidepassage', { passage: window.passage });
+		dispatch('showpassage', { passage: passage });
 
-		/**
-		 Triggered whenever a passage is about to be shown onscreen.
-		 The passage being displayed is stored in the passage property of the event.
-
-		 @event showpassage
-		**/
-
-		$.event.trigger('showpassage', { passage: passage });
-
-		/**
-		 Save the old passage html to the passage history.
-		 **/
-
-		if (!noMove) {
+		if (!opts.noMove) {
 			this.movePassageToHistory();
 		}
 
-		/**
-     Create passage element
-		 **/
-
 		window.passage = passage;
+		passage.links = [];
 
-  	var speaker = this.getPassageSpeaker(passage);
+		var html;
 
-    var passageElem;
-		if (speaker == 'undefined') {
-			passageElem = $('<div class="meta-passage">' + passage.render() + '</div>');
-		} else {
-		  passageElem = $(
-				'<div data-speaker="' + speaker + '" class="chat-passage-wrapper ' + passage.tags.join(' ') + '">' + 
-		  			'<div data-speaker="' + speaker + '" class="chat-passage">' + 
-						passage.render() + 
-					'</div>' +
-				'</div>'
-			);  
+		try {
+			html = passage.render();
 		}
-    
-		if (!noHistory) {
-			this.recent.push(passage.id);
-			this.recent_dom.push(passageElem[0]);
-    }
+		catch (error) {
+			this.showError(this.errorMessage.replace('%s', error.message));
+			return;
+		}
 
-    /**
-		 Add passage element to passage container element
-     **/
+		var story = this;
+		var speaker = this.getPassageSpeaker(passage);
+		var metaMode = speaker ? 'chat' : this.getMetaMode(passage);
 
-		$('#passage')
-      .append(passageElem)
-			.fadeIn('slow');
-		
+		// any new content replaces active overlay/notification narration
+
+		this.hideMeta();
+
+		// a passage tagged `clear` wipes the visible thread first
+		// (flashbacks, scene changes)
+
+		if (passage.tags.indexOf('clear') > -1) {
+			this.clearThread();
+		}
+
+		// apply [react …] directives to the player's last message
+
+		html = html.replace(
+			/<div class="chat-react" data-emoji="([^"]*)"><\/div>/g,
+			function(match, emoji) {
+				story.react(template.unescapeHtml(emoji), 'out');
+				return '';
+			}
+		);
+
+		if (metaMode !== 'chat') {
+			this.showMeta(html, metaMode);
+		}
+		else {
+			var nodes = this.buildPassageElement(passage, speaker, html);
+
+			nodes.forEach(function(node) {
+				if (opts.instant) {
+					node.classList.add('no-anim');
+				}
+
+				if (node.classList.contains('chat-passage-wrapper')) {
+					story.applyGrouping(node);
+				}
+
+				story.dom.passage.appendChild(node);
+
+				// images finish loading after the initial scroll;
+				// re-scroll so they don't cut off the newest messages
+
+				node.querySelectorAll('img').forEach(function(img) {
+					img.addEventListener('load', function() {
+						story.scrollChatIntoView();
+					});
+				});
+			});
+		}
+
+		// read receipts: explicit tags win, otherwise a speaker's reply
+		// marks the player's last message as read
+
+		if (this.config.readReceipts) {
+			var lastOutgoing = this.lastOutgoingWrapper();
+
+			if (passage.tags.indexOf('failed') > -1) {
+				this.markFailed();
+			}
+			else if (passage.tags.indexOf('unread') > -1) {
+				this.markUnread();
+			}
+			else if (passage.tags.indexOf('read') > -1) {
+				this.markRead();
+			}
+			else if (
+				this.config.autoRead &&
+				speaker &&
+				speaker !== 'you' &&
+				(!lastOutgoing ||
+					lastOutgoing.getAttribute('data-receipt') !== 'failed')
+			) {
+				this.markRead();
+			}
+		}
+
+		// incoming-message effects (skipped while replaying a save)
+
+		if (!opts.instant && speaker && speaker !== 'you') {
+			this.playSound('receive');
+			this.notifyTitle();
+		}
+
+		if (opts.record !== false) {
+			this.timeline.push({ t: 'p', id: passage.id });
+			this.history.push(passage.id);
+		}
+
+		this.clearUserResponses();
 		this.showUserResponses();
-		
+		this.pcolophon();
+		this.persist();
 		this.scrollChatIntoView();
 
-		this.pcolophon();
-
 		/**
-		 Triggered after a passage has been shown onscreen, and is now
-		 displayed in the div with id passage. The passage being displayed is
-		 stored in the passage property of the event.
+		 Triggered after a passage has been shown onscreen.
+		**/
 
-		 @event showpassage:after
-		 **/
-
-		$.event.trigger('showpassage:after', { passage: passage });
+		dispatch('showpassage:after', { passage: passage });
 	},
 
 	/**
-	 move current passage to history
-	 **/
-	movePassageToHistory: function () {
-		// $('#passage').hide();
-		
-		this.emptyPassageLinks();
+	 Builds the DOM elements for a rendered passage: timestamp chips,
+	 then a centered meta passage (no speaker tag) or a chat message
+	 group with avatar, speaker name and one bubble per paragraph.
+	 Returns an array of elements (empty if nothing rendered visible).
+	**/
 
-		this.pcopy();
+	buildPassageElement: function(passage, speaker, html) {
+		var story = this;
+		var nodes = [];
+		var content = document.createElement('div');
+
+		content.innerHTML = html;
+
+		var blocks = Array.prototype.filter.call(content.childNodes, function(node) {
+			return !(
+				node.nodeType === Node.TEXT_NODE && node.textContent.trim() === ''
+			);
+		});
+
+		// a passage tagged `timestamp` renders entirely as timestamp chips
+
+		if (passage.tags.indexOf('timestamp') > -1) {
+			blocks.forEach(function(block) {
+				nodes.push(story.buildTimestamp(block.textContent.trim()));
+			});
+
+			return nodes;
+		}
+
+		// hoist inline [timestamp ...] chips above the message group
+
+		blocks = blocks.filter(function(block) {
+			if (
+				block.nodeType === Node.ELEMENT_NODE &&
+				block.classList.contains('chat-timestamp')
+			) {
+				nodes.push(block);
+				return false;
+			}
+
+			return true;
+		});
+
+		if (blocks.length === 0) {
+			return nodes;
+		}
+
+		// meta passage (no speaker)
+
+		if (!speaker) {
+			var meta = document.createElement('div');
+
+			meta.className = 'meta-passage';
+			blocks.forEach(function(node) {
+				meta.appendChild(node);
+			});
+			this.buildRichContent(meta);
+
+			nodes.push(meta);
+			return nodes;
+		}
+
+		// chat message group
+
+		var profile = this.getSpeakerProfile(speaker);
+		var wrapper = document.createElement('div');
+
+		wrapper.className = 'chat-passage-wrapper';
+		wrapper.setAttribute('data-speaker', speaker);
+
+		if (profile.color) {
+			wrapper.style.setProperty('--speaker-color', profile.color);
+
+			var textColor = contrastColor(profile.color);
+
+			if (textColor) {
+				wrapper.style.setProperty('--speaker-text-color', textColor);
+			}
+		}
+
+		passage.tags.forEach(function(tag) {
+			if (/^[A-Za-z_][\w-]*$/.test(tag)) {
+				wrapper.classList.add(tag);
+			}
+		});
+
+		if (speaker !== 'you') {
+			var avatar = document.createElement('div');
+
+			avatar.className = 'chat-avatar';
+			avatar.setAttribute('aria-hidden', 'true');
+			this.decorateAvatar(avatar, speaker);
+			wrapper.appendChild(avatar);
+		}
+
+		var bubbles = document.createElement('div');
+
+		bubbles.className = 'chat-bubbles';
+		wrapper.appendChild(bubbles);
+
+		if (speaker !== 'you') {
+			var name = document.createElement('div');
+
+			name.className = 'chat-speaker-name';
+			name.textContent = this.getSpeakerDisplayName(speaker);
+			bubbles.appendChild(name);
+		}
+
+		var bubbleBlocks = this.config.splitBubbles ? blocks : [null];
+		var index = 0;
+
+		bubbleBlocks.forEach(function(block) {
+			var bubble = document.createElement('div');
+
+			bubble.className = 'chat-passage';
+			bubble.setAttribute('data-speaker', speaker);
+
+			if (block === null) {
+				while (content.firstChild) {
+					bubble.appendChild(content.firstChild);
+				}
+			}
+			else {
+				if (block.nodeType === Node.TEXT_NODE) {
+					var p = document.createElement('p');
+
+					p.textContent = block.textContent;
+					bubble.appendChild(p);
+				}
+				else {
+					bubble.appendChild(block);
+				}
+			}
+
+			// media-only bubbles (a lone image/video/iframe) render
+			// borderless, like a photo message
+
+			if (story.isMediaOnly(bubble)) {
+				bubble.classList.add('chat-passage--media');
+			}
+
+			story.buildRichContent(bubble);
+
+			if (bubble.querySelector('.chat-voice')) {
+				bubble.classList.add('chat-passage--voice');
+			}
+
+			if (bubble.querySelector('.chat-location')) {
+				bubble.classList.add('chat-passage--location');
+			}
+
+			bubble.style.animationDelay =
+				(index * story.config.bubbleStagger) + 'ms';
+			index += 1;
+
+			bubbles.appendChild(bubble);
+		});
+
+		nodes.push(wrapper);
+		return nodes;
 	},
-	
+
 	/**
-	 render passage links as UserResponses in UserResponsePanel
-	 **/
-	showUserResponses: function () {
-		_.each(passage.links, function (link) {
-			$('#user-response-panel').append(
-				'<a ' + 
-					'href="javascript:void(0)"' +
-					'class="user-response"' +
-					'data-passage="' + _.escape(link.target) + '"' +
-				'>' + 
-					link.display + 
-				'</a>'
-			).fadeIn('slow')
+	 Upgrades rich-content placeholders inside rendered passage HTML:
+	 .chat-voice divs become voice-memo players and .chat-location divs
+	 become map cards.
+	**/
+
+	buildRichContent: function(root) {
+		var story = this;
+
+		root.querySelectorAll('.chat-voice').forEach(function(el) {
+			story.buildVoicePlayer(el);
+		});
+		root.querySelectorAll('.chat-location').forEach(function(el) {
+			story.buildLocationCard(el);
 		});
 	},
 
 	/**
-	 remove UserResponses from UserResponsePanel
-	 **/
+	 Builds a WhatsApp-style voice-memo player: play/pause button,
+	 waveform bars that fill as the audio plays, and a duration label.
+	**/
 
-	clearUserResponses: function () {
-		// remove UserResponse links
-		$('#user-response-panel').empty();
+	buildVoicePlayer: function(el) {
+		var story = this;
+		var src = el.getAttribute('data-src');
+
+		if (!src || el.getAttribute('data-built')) {
+			return;
+		}
+
+		el.setAttribute('data-built', '1');
+
+		var audio = document.createElement('audio');
+
+		audio.preload = 'metadata';
+		audio.src = src;
+
+		var button = document.createElement('button');
+
+		button.type = 'button';
+		button.className = 'chat-voice-play';
+		button.setAttribute('aria-label', 'Play voice message');
+		button.innerHTML = PLAY_SVG;
+
+		var bars = document.createElement('div');
+		var BAR_COUNT = 24;
+		var barEls = [];
+
+		bars.className = 'chat-voice-bars';
+		bars.setAttribute('aria-hidden', 'true');
+
+		// a decorative waveform, deterministic per source
+
+		var seed = 0;
+
+		for (var i = 0; i < src.length; i++) {
+			seed = (seed * 31 + src.charCodeAt(i)) % 9973;
+		}
+
+		for (var b = 0; b < BAR_COUNT; b++) {
+			var bar = document.createElement('span');
+
+			seed = (seed * 137 + 71) % 9973;
+			bar.style.setProperty('--h', (30 + (seed % 65)) + '%');
+			bars.appendChild(bar);
+			barEls.push(bar);
+		}
+
+		var time = document.createElement('span');
+
+		time.className = 'chat-voice-time';
+		time.textContent = '0:00';
+
+		var format = function(seconds) {
+			var m = Math.floor(seconds / 60);
+			var s = Math.round(seconds % 60);
+
+			return m + ':' + (s < 10 ? '0' : '') + s;
+		};
+
+		audio.addEventListener('loadedmetadata', function() {
+			if (isFinite(audio.duration)) {
+				time.textContent = format(audio.duration);
+			}
+		});
+
+		button.addEventListener('click', function() {
+			if (audio.paused) {
+				if (story._playingAudio && story._playingAudio !== audio) {
+					story._playingAudio.pause();
+				}
+
+				story._playingAudio = audio;
+				audio.play().catch(function() { /* autoplay policy */ });
+			}
+			else {
+				audio.pause();
+			}
+		});
+
+		audio.addEventListener('play', function() {
+			el.classList.add('playing');
+			button.innerHTML = PAUSE_SVG;
+			button.setAttribute('aria-label', 'Pause voice message');
+		});
+
+		audio.addEventListener('pause', function() {
+			el.classList.remove('playing');
+			button.innerHTML = PLAY_SVG;
+			button.setAttribute('aria-label', 'Play voice message');
+		});
+
+		audio.addEventListener('timeupdate', function() {
+			if (!isFinite(audio.duration) || audio.duration === 0) {
+				return;
+			}
+
+			time.textContent = format(audio.currentTime);
+
+			var played = Math.floor(
+				(audio.currentTime / audio.duration) * BAR_COUNT
+			);
+
+			barEls.forEach(function(bar, index) {
+				bar.classList.toggle('played', index < played);
+			});
+		});
+
+		audio.addEventListener('ended', function() {
+			audio.currentTime = 0;
+			time.textContent = format(audio.duration);
+			barEls.forEach(function(bar) {
+				bar.classList.remove('played');
+			});
+		});
+
+		el.textContent = '';
+		el.appendChild(button);
+		el.appendChild(bars);
+		el.appendChild(time);
+		el.appendChild(audio);
 	},
 
 	/**
-	 render chosen UserResponse as passage in pHistory
-	 **/
+	 Builds a location map card that links out to OpenStreetMap.
+	**/
 
-	showUserPassage: function (text) {
-		this.history = this.history.concat(this.recent);
-		this.history_dom = this.history_dom.concat(this.recent_dom);
-		this.recent = [];
-		this.recent_dom = [];
+	buildLocationCard: function(el) {
+		var lat = parseFloat(el.getAttribute('data-lat'));
+		var lon = parseFloat(el.getAttribute('data-lon'));
 
-		this.undoHistory.push(
-			{
-				state: this.state,
-				history_dom: this.history_dom,
-				history: this.history
+		if (isNaN(lat) || isNaN(lon) || el.getAttribute('data-built')) {
+			return;
+		}
+
+		el.setAttribute('data-built', '1');
+
+		var label = el.getAttribute('data-label') || 'Location';
+		var card = document.createElement('a');
+
+		card.className = 'chat-location-card';
+		card.href =
+			'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon +
+			'#map=16/' + lat + '/' + lon;
+		card.target = '_blank';
+		card.rel = 'noopener';
+
+		var map = document.createElement('div');
+
+		map.className = 'chat-location-map';
+		map.innerHTML = PIN_SVG;
+
+		var info = document.createElement('div');
+
+		info.className = 'chat-location-info';
+
+		var name = document.createElement('strong');
+
+		name.textContent = label;
+
+		var coords = document.createElement('span');
+
+		coords.textContent = lat.toFixed(4) + ', ' + lon.toFixed(4);
+		info.appendChild(name);
+		info.appendChild(coords);
+		card.appendChild(map);
+		card.appendChild(info);
+		el.textContent = '';
+		el.appendChild(card);
+	},
+
+	buildTimestamp: function(text) {
+		var chip = document.createElement('div');
+
+		chip.className = 'chat-timestamp';
+		chip.textContent = text;
+
+		return chip;
+	},
+
+	/**
+	 Fills an avatar element for a speaker: profile image if one is set,
+	 otherwise an initial on a stable auto color.
+	**/
+
+	decorateAvatar: function(avatar, speaker) {
+		var profile = this.getSpeakerProfile(speaker);
+
+		avatar.setAttribute('data-speaker', speaker);
+		avatar.style.setProperty('--avatar-hue', this.speakerHue(speaker));
+
+		if (profile.avatar) {
+			avatar.classList.add('chat-avatar--img');
+			avatar.style.backgroundImage = 'url("' + profile.avatar + '")';
+			avatar.textContent = '';
+		}
+		else {
+			avatar.classList.remove('chat-avatar--img');
+			avatar.style.backgroundImage = '';
+
+			if (profile.color) {
+				avatar.style.backgroundColor = profile.color;
 			}
-		);
-		$('#nav-link-undo').css({'visibility': 'visible'});
+			else {
+				avatar.style.backgroundColor = '';
+			}
 
-		// render clicked link as UserPassage
-		var user_passage = $('<div class="chat-passage-wrapper" data-speaker="you"><div class="chat-passage phistory" data-speaker="you" data-upassage="' + window.passage.id + '">' + text + '</div></div>');
-		$('#phistory').append(user_passage);
-		this.recent_dom.push(user_passage[0]);
+			avatar.textContent = this.getSpeakerDisplayName(speaker)
+				.charAt(0)
+				.toUpperCase();
+		}
+	},
+
+	isMediaOnly: function(bubble) {
+		if (bubble.textContent.trim() !== '') {
+			return false;
+		}
+
+		var media = bubble.querySelectorAll('img, video, iframe, svg');
+
+		return media.length > 0;
+	},
+
+	/**
+	 Derives a stable hue (0-359) from a speaker name, used to tint that
+	 speaker's avatar. Override per speaker with CSS if you prefer:
+	   .chat-avatar[data-speaker="alice"] { background: rebeccapurple; }
+	**/
+
+	speakerHue: function(speaker) {
+		if (!(speaker in this._speakerHues)) {
+			var hash = 0;
+
+			for (var i = 0; i < speaker.length; i++) {
+				hash = (hash * 31 + speaker.charCodeAt(i)) % 360;
+			}
+
+			this._speakerHues[speaker] = hash;
+		}
+
+		return this._speakerHues[speaker];
+	},
+
+	/**
+	 Marks a new message group as a continuation when the previous group
+	 has the same speaker, so CSS can tighten spacing, hide the repeated
+	 name/avatar and adjust bubble corners.
+	**/
+
+	applyGrouping: function(wrapper) {
+		var previous =
+			this.dom.passage.lastElementChild ||
+			this.dom.history.lastElementChild;
+
+		if (
+			previous &&
+			previous.classList.contains('chat-passage-wrapper') &&
+			previous.getAttribute('data-speaker') ===
+				wrapper.getAttribute('data-speaker')
+		) {
+			wrapper.classList.add('chat-follow');
+			previous.classList.add('has-follow');
+
+			var name = wrapper.querySelector('.chat-speaker-name');
+
+			if (name) {
+				name.remove();
+			}
+		}
+	},
+
+	/**
+	 Moves the current passage's messages into the history container.
+	**/
+
+	movePassageToHistory: function() {
+		while (this.dom.passage.firstChild) {
+			this.dom.history.appendChild(this.dom.passage.firstChild);
+		}
+	},
+
+	/**
+	 Renders passage links as response buttons in the response panel.
+	 Links whose display text starts with "photo:" are collected into a
+	 single camera button that opens the photo picker.
+	**/
+
+	showUserResponses: function() {
+		var story = this;
+
+		if (!window.passage) {
+			return;
+		}
+
+		var links = window.passage.links;
+		var photoOffers = this.getPhotoOffers(links);
+		var locationOffers = this.getLocationOffers(links);
+		var reactionOffers = [];
+
+		links.forEach(function(link) {
+			var display = link.display.trim();
+
+			if (display.indexOf(REACT_LINK_PREFIX) === 0) {
+				reactionOffers.push({
+					emoji: display.substring(REACT_LINK_PREFIX.length).trim(),
+					target: link.target
+				});
+			}
+		});
+
+		var textLinks = links.filter(function(link) {
+			var display = link.display.trim();
+
+			return (
+				display.indexOf(PHOTO_LINK_PREFIX) !== 0 &&
+				display !== 'location' &&
+				display.indexOf(LOCATION_LINK_PREFIX) !== 0 &&
+				display.indexOf(REACT_LINK_PREFIX) !== 0
+			);
+		});
+
+		textLinks.forEach(function(link, index) {
+			var button = document.createElement('button');
+
+			button.type = 'button';
+			button.className = 'user-response';
+			button.setAttribute('data-passage', link.target);
+			button.innerHTML = link.display;
+			button.style.animationDelay = (index * 60) + 'ms';
+			story.dom.responses.appendChild(button);
+		});
+
+		if (photoOffers.length > 0) {
+			var photoButton = document.createElement('button');
+
+			photoButton.type = 'button';
+			photoButton.className = 'user-response user-response--photo';
+			photoButton.setAttribute('aria-label', this.config.photoButtonLabel);
+			photoButton.setAttribute('title', this.config.photoButtonLabel);
+			photoButton.innerHTML = CAMERA_SVG;
+			photoButton.style.animationDelay = (textLinks.length * 60) + 'ms';
+			photoButton.addEventListener('click', function() {
+				story.openPhotoPicker(photoOffers);
+			});
+			this.dom.responses.appendChild(photoButton);
+		}
+
+		locationOffers.forEach(function(offer, index) {
+			var button = document.createElement('button');
+
+			button.type = 'button';
+			button.className = 'user-response user-response--location';
+			button.innerHTML =
+				PIN_SVG + '<span></span>';
+			button.querySelector('span').textContent =
+				offer.label || story.config.locationButtonLabel;
+			button.style.animationDelay =
+				((textLinks.length + (photoOffers.length ? 1 : 0) + index) * 60) +
+				'ms';
+			button.addEventListener('click', function() {
+				story.sendLocation(offer.target, offer.label);
+			});
+			story.dom.responses.appendChild(button);
+		});
+
+		reactionOffers.forEach(function(offer, index) {
+			var button = document.createElement('button');
+
+			button.type = 'button';
+			button.className = 'user-response user-response--react';
+			button.setAttribute(
+				'aria-label',
+				'React with ' + offer.emoji
+			);
+			button.textContent = offer.emoji;
+			button.style.animationDelay =
+				((textLinks.length + locationOffers.length +
+					(photoOffers.length ? 1 : 0) + index) * 60) + 'ms';
+			button.addEventListener('click', function() {
+				story.sendReaction(offer.emoji, offer.target);
+			});
+			story.dom.responses.appendChild(button);
+		});
+	},
+
+	/**
+	 Extracts location-share offers from a passage's links:
+
+	   [[location->Target]]                  default button label
+	   [[location:Drop them a pin->Target]]  custom button label
+
+	 Choosing one asks the browser for the player's real coordinates
+	 (with their permission), sends them as a map card, and stores them
+	 in s.playerLocation before showing the target passage. If the
+	 player declines (or geolocation is unavailable), s.playerLocation
+	 is null and the story continues to the same target.
+	**/
+
+	getLocationOffers: function(links) {
+		var offers = [];
+
+		links.forEach(function(link) {
+			var display = link.display.trim();
+
+			if (display === 'location') {
+				offers.push({ label: '', target: link.target });
+			}
+			else if (display.indexOf(LOCATION_LINK_PREFIX) === 0) {
+				offers.push({
+					label: display.substring(LOCATION_LINK_PREFIX.length).trim(),
+					target: link.target
+				});
+			}
+		});
+
+		return offers;
+	},
+
+	/**
+	 Requests the player's real location and sends it as an outgoing
+	 map card, then continues to the target passage either way.
+	**/
+
+	sendLocation: function(targetName) {
+		if (!this.passage(targetName)) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no passage named "' + targetName + '"'
+				)
+			);
+			return;
+		}
+
+		this.movePassageToHistory();
+		this.pushCheckpoint();
+		this.hideMeta();
+		this.clearUserResponses();
+
+		var story = this;
+
+		var proceed = function(position) {
+			if (position) {
+				var lat = position.coords.latitude;
+				var lon = position.coords.longitude;
+
+				story.state.playerLocation = {
+					lat: lat,
+					lon: lon,
+					accuracy: position.coords.accuracy
+				};
+				story.showLocationBubble(
+					lat,
+					lon,
+					story.config.locationBubbleLabel
+				);
+				story.playSound('send');
+
+				/**
+				 Triggered when the player shares their location.
+				**/
+
+				dispatch('locationshared', {
+					lat: lat,
+					lon: lon,
+					story: story
+				});
+			}
+			else {
+				story.state.playerLocation = null;
+			}
+
+			story.showDelayed(targetName, { noMove: true });
+		};
+
+		if (!navigator.geolocation) {
+			proceed(null);
+			return;
+		}
+
+		navigator.geolocation.getCurrentPosition(
+			function(position) { proceed(position); },
+			function() { proceed(null); },
+			{ timeout: 8000, maximumAge: 60000 }
+		);
+	},
+
+	/**
+	 Renders a shared location as an outgoing map-card message.
+	**/
+
+	showLocationBubble: function(lat, lon, label, opts) {
+		opts = opts || {};
+
+		var wrapper = document.createElement('div');
+
+		wrapper.className = 'chat-passage-wrapper';
+		wrapper.setAttribute('data-speaker', 'you');
+
+		var bubbles = document.createElement('div');
+
+		bubbles.className = 'chat-bubbles';
+
+		var bubble = document.createElement('div');
+
+		bubble.className = 'chat-passage chat-passage--location phistory';
+		bubble.setAttribute('data-speaker', 'you');
+
+		var card = document.createElement('div');
+
+		card.className = 'chat-location';
+		card.setAttribute('data-lat', lat);
+		card.setAttribute('data-lon', lon);
+		card.setAttribute('data-label', label || '');
+		bubble.appendChild(card);
+		this.buildLocationCard(card);
+		bubbles.appendChild(bubble);
+		wrapper.appendChild(bubbles);
+		this.applyUserProfile(wrapper);
+
+		var status = this.attachReceipt(wrapper, bubbles, opts.receipt);
+
+		if (opts.instant) {
+			wrapper.classList.add('no-anim');
+		}
+
+		this.applyGrouping(wrapper);
+		this.dom.history.appendChild(wrapper);
+
+		var entry = { t: 'l', lat: lat, lon: lon, label: label };
+
+		if (status) {
+			entry.r = status;
+
+			if (opts.receipt && opts.receipt.label) {
+				entry.rl = opts.receipt.label;
+			}
+		}
+
+		this.timeline.push(entry);
 		this.scrollChatIntoView();
 	},
 
 	/**
-	 scroll bottom of chat-panel into view to ensure recently 
-	 added passages can be read
-	 **/
+	 Parses the StoryImages passage into the gallery: one image per line
+	 in `name: url` form. Lines may optionally start with a list dash.
+	**/
 
-	scrollChatIntoView: function () {
-		var d = document.documentElement;
-		var offset = d.scrollTop + window.innerHeight;
-		var height = d.offsetHeight;
+	parseGallery: function() {
+		var gallery = {};
+		var imagesPassage = this.passage('StoryImages');
 
-		if (offset !== height) {
-			$('html, body').animate({scrollTop:$('.chat-panel').height()}, 1000);
+		if (imagesPassage) {
+			imagesPassage.source.split(/\r?\n/).forEach(function(line) {
+				var match = line.match(/^\s*[-*]?\s*([\w][\w -]*?)\s*:\s*(\S.*?)\s*$/);
+
+				if (match) {
+					gallery[match[1]] = match[2];
+				}
+			});
+		}
+
+		return gallery;
+	},
+
+	/**
+	 Extracts photo offers from a passage's links.
+
+	   [[photo:cat->Target]]       offer the gallery image named "cat"
+	   [[photo:cat,dog->Target]]   offer several images
+	   [[photo:*->Target]]         offer the whole gallery
+
+	 Each offer is { name, target }; choosing one sends that image and
+	 shows the target passage.
+	**/
+
+	getPhotoOffers: function(links) {
+		var story = this;
+		var offers = [];
+		var seen = {};
+
+		links.forEach(function(link) {
+			var display = link.display.trim();
+
+			if (display.indexOf(PHOTO_LINK_PREFIX) !== 0) {
+				return;
+			}
+
+			var names = display.substring(PHOTO_LINK_PREFIX.length).trim();
+			var list =
+				names === '*' || names === ''
+					? Object.keys(story.gallery)
+					: names.split(',').map(function(n) { return n.trim(); });
+
+			list.forEach(function(name) {
+				if (name && !seen[name]) {
+					seen[name] = true;
+					offers.push({ name: name, target: link.target });
+				}
+			});
+		});
+
+		return offers;
+	},
+
+	/**
+	 Opens the photo picker sheet with the given offers.
+	**/
+
+	openPhotoPicker: function(offers) {
+		var story = this;
+		var grid = this.dom.pickerGrid;
+
+		grid.textContent = '';
+
+		offers.forEach(function(offer) {
+			var url = story.gallery[offer.name];
+
+			if (!url) {
+				return;
+			}
+
+			var item = document.createElement('button');
+
+			item.type = 'button';
+			item.className = 'photo-picker-item';
+
+			var img = document.createElement('img');
+
+			img.src = url;
+			img.alt = '';
+
+			var label = document.createElement('span');
+
+			label.textContent = offer.name;
+			item.appendChild(img);
+			item.appendChild(label);
+			item.addEventListener('click', function() {
+				story.dom.picker.close();
+				story.sendPhoto(offer.name, offer.target);
+			});
+			grid.appendChild(item);
+		});
+
+		if (grid.children.length === 0) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'No matching images — add them to a StoryImages passage ' +
+					'(one "name: url" per line)'
+				)
+			);
+			return;
+		}
+
+		if (typeof this.dom.picker.showModal === 'function') {
+			this.dom.picker.showModal();
 		}
 	},
 
 	/**
-	 Copies the colophon into an end passage.
-
-	 @method pcolophon
+	 Sends a gallery image as the player's message and shows the target
+	 passage. The choice is tracked in story state: `s.lastPhoto` holds
+	 the most recent image name and `s.sentPhotos` every image sent.
 	**/
-	
-	pcolophon: function() {
-		if ($.inArray('End', window.passage.tags) > -1 && this.passage('StoryColophon') != null) {
-			$(this.passage('StoryColophon').render()).hide().appendTo("#passage").fadeIn('slow');
+
+	sendPhoto: function(name, targetName) {
+		if (!this.gallery[name]) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no image named "' + name + '" in StoryImages'
+				)
+			);
+			return;
+		}
+
+		if (!this.passage(targetName)) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no passage named "' + targetName + '"'
+				)
+			);
+			return;
+		}
+
+		this.movePassageToHistory();
+		this.pushCheckpoint();
+		this.hideMeta();
+		this.clearUserResponses();
+
+		this.state.lastPhoto = name;
+		this.state.sentPhotos = (this.state.sentPhotos || []).concat(name);
+
+		this.showPhotoBubble(name);
+		this.playSound('send');
+
+		/**
+		 Triggered when the player sends a photo.
+		**/
+
+		dispatch('photosent', { name: name, target: targetName, story: this });
+
+		this.showDelayed(targetName, { noMove: true });
+	},
+
+	/**
+	 Renders a sent image as an outgoing photo message.
+	**/
+
+	showPhotoBubble: function(name, opts) {
+		opts = opts || {};
+
+		var story = this;
+		var wrapper = document.createElement('div');
+
+		wrapper.className = 'chat-passage-wrapper';
+		wrapper.setAttribute('data-speaker', 'you');
+
+		var bubbles = document.createElement('div');
+
+		bubbles.className = 'chat-bubbles';
+
+		var bubble = document.createElement('div');
+
+		bubble.className = 'chat-passage chat-passage--media phistory';
+		bubble.setAttribute('data-speaker', 'you');
+
+		var img = document.createElement('img');
+
+		img.src = this.gallery[name] || '';
+		img.alt = name;
+		img.addEventListener('load', function() {
+			story.scrollChatIntoView();
+		});
+		bubble.appendChild(img);
+		bubbles.appendChild(bubble);
+		wrapper.appendChild(bubbles);
+		this.applyUserProfile(wrapper);
+
+		var status = this.attachReceipt(wrapper, bubbles, opts.receipt);
+
+		if (opts.instant) {
+			wrapper.classList.add('no-anim');
+		}
+
+		this.applyGrouping(wrapper);
+		this.dom.history.appendChild(wrapper);
+
+		var entry = { t: 'i', name: name };
+
+		if (status) {
+			entry.r = status;
+
+			if (opts.receipt && opts.receipt.label) {
+				entry.rl = opts.receipt.label;
+			}
+		}
+
+		this.timeline.push(entry);
+		this.scrollChatIntoView();
+	},
+
+	/**
+	 Removes response buttons from the response panel.
+	**/
+
+	clearUserResponses: function() {
+		this.dom.responses.textContent = '';
+	},
+
+	/**
+	 Renders a chosen response as an outgoing chat message.
+	**/
+
+	showUserBubble: function(text, opts) {
+		opts = opts || {};
+
+		var wrapper = document.createElement('div');
+
+		wrapper.className = 'chat-passage-wrapper';
+		wrapper.setAttribute('data-speaker', 'you');
+
+		var bubbles = document.createElement('div');
+
+		bubbles.className = 'chat-bubbles';
+
+		var bubble = document.createElement('div');
+
+		bubble.className = 'chat-passage phistory';
+		bubble.setAttribute('data-speaker', 'you');
+
+		if (window.passage) {
+			bubble.setAttribute('data-upassage', window.passage.id);
+		}
+
+		bubble.textContent = text;
+		bubbles.appendChild(bubble);
+		wrapper.appendChild(bubbles);
+		this.applyUserProfile(wrapper);
+
+		var status = this.attachReceipt(wrapper, bubbles, opts.receipt);
+
+		if (opts.instant) {
+			wrapper.classList.add('no-anim');
+		}
+
+		this.applyGrouping(wrapper);
+		this.dom.history.appendChild(wrapper);
+
+		var entry = { t: 'u', text: text };
+
+		if (status) {
+			entry.r = status;
+
+			if (opts.receipt && opts.receipt.label) {
+				entry.rl = opts.receipt.label;
+			}
+		}
+
+		this.timeline.push(entry);
+		this.scrollChatIntoView();
+	},
+
+	/**
+	 Applies the "you" speaker profile color (if any) to an outgoing
+	 message wrapper.
+	**/
+
+	applyUserProfile: function(wrapper) {
+		var profile = this.getSpeakerProfile('you');
+
+		if (profile.color) {
+			wrapper.style.setProperty('--speaker-color', profile.color);
+
+			var textColor = contrastColor(profile.color);
+
+			if (textColor) {
+				wrapper.style.setProperty('--speaker-text-color', textColor);
+			}
 		}
 	},
-	
-	/**
-	 Copies the current passage text into the passage history div.
 
-	 @method pcopy
+	/**
+	 Sets the read receipt on the player's most recent message and
+	 records it in the timeline so saves and undo keep it. `status` is
+	 'delivered' or 'read'; `label` optionally overrides the display
+	 text (e.g. story.markRead('Read 9:41 PM')).
 	**/
-	
-	pcopy: function() {
-		if (parseInt(window.passage.id,10)){
-      // (I used .remove() here to remove any event handlers, which shouldn't persist.)
-      var removed = $('#passage').children().remove();
-			$('#phistory').append(removed);
+
+	setReceipt: function(status, label) {
+		if (!this.config.readReceipts) {
+			return;
+		}
+
+		var wrapper = this.lastOutgoingWrapper();
+
+		if (!wrapper) {
+			return;
+		}
+
+		var text = label || this.config.receiptLabels[status] || '';
+
+		wrapper.setAttribute('data-receipt', status);
+
+		var receipt = wrapper.querySelector('.chat-receipt');
+
+		if (!receipt) {
+			receipt = document.createElement('div');
+			receipt.className = 'chat-receipt';
+			wrapper.querySelector('.chat-bubbles').appendChild(receipt);
+		}
+
+		receipt.textContent = text;
+
+		for (var i = this.timeline.length - 1; i >= 0; i--) {
+			var entry = this.timeline[i];
+
+			if (entry.t === 'u' || entry.t === 'i' || entry.t === 'l') {
+				entry.r = status;
+
+				if (label) {
+					entry.rl = label;
+				}
+				else {
+					delete entry.rl;
+				}
+
+				break;
+			}
+		}
+
+		this.persist();
+	},
+
+	/**
+	 The player's most recent message wrapper, or null.
+	**/
+
+	lastOutgoingWrapper: function() {
+		var wrappers = this.dom.history.querySelectorAll(
+			'.chat-passage-wrapper[data-speaker="you"]'
+		);
+
+		return wrappers.length ? wrappers[wrappers.length - 1] : null;
+	},
+
+	/**
+	 Marks the player's last message as read. Called automatically when
+	 a speaker replies (config.autoRead) or by a passage tagged `read`;
+	 call it yourself for finer control.
+	**/
+
+	markRead: function(label) {
+		this.setReceipt('read', label);
+	},
+
+	/**
+	 Marks the player's last message as failed ("Not Delivered", shown
+	 in red and — unlike other receipts — displayed permanently on that
+	 message). Also triggered by a passage tagged `failed`. Automatic
+	 read receipts will not override a failed message.
+	**/
+
+	markFailed: function(label) {
+		this.setReceipt('failed', label);
+	},
+
+	/**
+	 Flips the player's last message back to Delivered — useful for
+	 dramatic tension (the reply that never comes). Also triggered by a
+	 passage tagged `unread`.
+	**/
+
+	markUnread: function(label) {
+		this.setReceipt('delivered', label);
+	},
+
+	/**
+	 Attaches an emoji tapback badge to the most recent message.
+	 `which` is 'out' (the player's last message — the default, used by
+	 [react …] directives) or 'in' (the last speaker message, used when
+	 the player reacts). One reaction per message; a new one replaces it.
+	**/
+
+	react: function(emoji, which) {
+		var selector =
+			'.chat-passage-wrapper' +
+			(which === 'in'
+				? ':not([data-speaker="you"])'
+				: '[data-speaker="you"]');
+		var wrappers = [].concat(
+			Array.prototype.slice.call(
+				this.dom.history.querySelectorAll(selector)
+			),
+			Array.prototype.slice.call(
+				this.dom.passage.querySelectorAll(selector)
+			)
+		);
+
+		var wrapper = wrappers[wrappers.length - 1];
+
+		if (!wrapper) {
+			return;
+		}
+
+		var bubbles = wrapper.querySelector('.chat-bubbles');
+
+		if (!bubbles) {
+			return;
+		}
+
+		var badge = bubbles.querySelector('.chat-reaction');
+
+		this._reactionLog.push({
+			bubbles: bubbles,
+			prev: badge ? badge.textContent : null
+		});
+
+		if (!badge) {
+			badge = document.createElement('span');
+			badge.className = 'chat-reaction';
+			bubbles.appendChild(badge);
+		}
+
+		badge.textContent = emoji;
+		wrapper.classList.add('has-reaction');
+		this.persist();
+	},
+
+	/**
+	 Handles the player reacting to the speaker's last message via a
+	 [[react:👍->Target]] response: no bubble is sent, the tapback
+	 lands on their message, and the story continues to the target.
+	 The choice is tracked in s.lastReaction.
+	**/
+
+	sendReaction: function(emoji, targetName) {
+		if (!this.passage(targetName)) {
+			this.showError(
+				this.errorMessage.replace(
+					'%s',
+					'There is no passage named "' + targetName + '"'
+				)
+			);
+			return;
+		}
+
+		this.movePassageToHistory();
+		this.pushCheckpoint();
+		this.hideMeta();
+		this.clearUserResponses();
+
+		this.state.lastReaction = emoji;
+		this.react(emoji, 'in');
+		this.timeline.push({ t: 'r', emoji: emoji });
+		this.playSound('send');
+
+		/**
+		 Triggered when the player reacts to a message.
+		**/
+
+		dispatch('reaction', { emoji: emoji, story: this });
+
+		this.showDelayed(targetName, { noMove: true });
+	},
+
+	/**
+	 Wipes the visible conversation — for flashbacks and scene changes.
+	 Also triggered by showing a passage tagged `clear`. Story state and
+	 the save timeline are untouched, but undo cannot reach back across
+	 a cleared thread.
+	**/
+
+	clearThread: function() {
+		this.dom.history.textContent = '';
+		this.dom.passage.textContent = '';
+		this.checkpoints = [];
+		this._reactionLog = [];
+		this.dom.undo.hidden = true;
+	},
+
+	/**
+	 Attaches a receipt element to an outgoing message wrapper.
+	**/
+
+	attachReceipt: function(wrapper, bubbles, receiptOpts) {
+		if (!this.config.readReceipts) {
+			return null;
+		}
+
+		var status = (receiptOpts && receiptOpts.status) || 'delivered';
+		var receipt = document.createElement('div');
+
+		receipt.className = 'chat-receipt';
+		receipt.textContent =
+			(receiptOpts && receiptOpts.label) ||
+			this.config.receiptLabels[status] ||
+			'';
+		wrapper.setAttribute('data-receipt', status);
+		bubbles.appendChild(receipt);
+
+		return status;
+	},
+
+	/**
+	 Plays a short synthesized blip for a sent or received message.
+	 Only when config.sounds is on, and only once the browser has
+	 unlocked audio after a user gesture.
+	**/
+
+	playSound: function(kind) {
+		if (!this.config.sounds) {
+			return;
+		}
+
+		var ctx = this._audioCtx;
+
+		if (!ctx || ctx.state !== 'running') {
+			return;
+		}
+
+		try {
+			var t = ctx.currentTime;
+			var osc = ctx.createOscillator();
+			var gain = ctx.createGain();
+
+			osc.type = 'sine';
+
+			if (kind === 'send') {
+				osc.frequency.setValueAtTime(880, t);
+				osc.frequency.exponentialRampToValueAtTime(1320, t + 0.09);
+			}
+			else {
+				osc.frequency.setValueAtTime(660, t);
+				osc.frequency.exponentialRampToValueAtTime(470, t + 0.11);
+			}
+
+			gain.gain.setValueAtTime(0.0001, t);
+			gain.gain.exponentialRampToValueAtTime(0.1, t + 0.015);
+			gain.gain.exponentialRampToValueAtTime(
+				0.0001,
+				t + (kind === 'send' ? 0.12 : 0.16)
+			);
+
+			osc.connect(gain);
+			gain.connect(ctx.destination);
+			osc.start(t);
+			osc.stop(t + 0.2);
+		}
+		catch (e) { /* audio is best-effort */ }
+	},
+
+	/**
+	 Bumps the "(n) Story Name" tab title while the tab is hidden.
+	**/
+
+	notifyTitle: function() {
+		if (!this.config.titleNotifications || !document.hidden) {
+			return;
+		}
+
+		this.unseen += 1;
+		document.title = '(' + this.unseen + ') ' + this.name;
+	},
+
+	/**
+	 Sets up the header light/dark toggle. Dark mode follows the
+	 player's system preference until they choose explicitly here;
+	 their choice is remembered per story.
+	**/
+
+	initTheme: function() {
+		var story = this;
+		var button = this.dom.theme;
+
+		if (!this.config.themeToggle) {
+			button.hidden = true;
+			return;
+		}
+
+		var saved = null;
+
+		try {
+			saved = window.localStorage.getItem(this.themeKey());
+		}
+		catch (e) { /* storage unavailable */ }
+
+		if (saved === 'light' || saved === 'dark') {
+			document.documentElement.setAttribute('data-theme', saved);
+		}
+
+		var effectiveTheme = function() {
+			var explicit = document.documentElement.getAttribute('data-theme');
+
+			if (explicit === 'light' || explicit === 'dark') {
+				return explicit;
+			}
+
+			return window.matchMedia &&
+				window.matchMedia('(prefers-color-scheme: dark)').matches
+				? 'dark'
+				: 'light';
+		};
+
+		var updateIcon = function() {
+			var dark = effectiveTheme() === 'dark';
+
+			button.innerHTML = dark ? SUN_SVG : MOON_SVG;
+			button.setAttribute(
+				'title',
+				dark ? 'Switch to light mode' : 'Switch to dark mode'
+			);
+			button.setAttribute(
+				'aria-label',
+				dark ? 'Switch to light mode' : 'Switch to dark mode'
+			);
+		};
+
+		button.addEventListener('click', function() {
+			var next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+
+			document.documentElement.setAttribute('data-theme', next);
+
+			try {
+				window.localStorage.setItem(story.themeKey(), next);
+			}
+			catch (e) { /* storage unavailable */ }
+
+			updateIcon();
+		});
+
+		if (window.matchMedia) {
+			window
+				.matchMedia('(prefers-color-scheme: dark)')
+				.addEventListener('change', updateIcon);
+		}
+
+		updateIcon();
+	},
+
+	themeKey: function() {
+		return 'chatbook-theme-' + this.ifid;
+	},
+
+	/**
+	 Resolves how a speakerless (narrator) passage should be presented:
+	 a per-passage tag wins, then config.metaStyle, defaulting to 'chat'.
+	**/
+
+	getMetaMode: function(passage) {
+		if (passage.tags.indexOf('meta-overlay') > -1) {
+			return 'overlay';
+		}
+
+		if (passage.tags.indexOf('meta-notification') > -1) {
+			return 'notification';
+		}
+
+		if (passage.tags.indexOf('meta-chat') > -1) {
+			return 'chat';
+		}
+
+		var mode = this.config.metaStyle;
+
+		return mode === 'overlay' || mode === 'notification' ? mode : 'chat';
+	},
+
+	/**
+	 Presents narration outside the conversation: as a veil over the
+	 blurred chat ('overlay') or a phone-style banner ('notification').
+	 The player's responses stay live below either one.
+	**/
+
+	showMeta: function(html, mode) {
+		var probe = document.createElement('div');
+
+		probe.innerHTML = html;
+
+		if (
+			probe.textContent.trim() === '' &&
+			!probe.querySelector('img, video, iframe, svg, .chat-voice, .chat-location')
+		) {
+			return;
+		}
+
+		if (mode === 'notification') {
+			this.dom.metaNotificationLabel.textContent =
+				this.config.metaNotificationLabel || this.name;
+			this.dom.metaNotificationBody.innerHTML = html;
+			this.buildRichContent(this.dom.metaNotificationBody);
+			this.dom.metaNotification.hidden = false;
+		}
+		else {
+			this.dom.metaOverlayContent.innerHTML = html;
+			this.buildRichContent(this.dom.metaOverlayContent);
+			this.dom.metaOverlay.hidden = false;
 		}
 	},
-	
-	/**
-	 Empties the current passage object links attribute,
-	 making space for the next passage's data
 
-	 @method emptyPassageLinks
+	/**
+	 Dismisses any overlay or notification narration.
 	**/
-	
-	emptyPassageLinks: function() {
-		passage.links = [];
+
+	hideMeta: function() {
+		this.dom.metaOverlay.hidden = true;
+		this.dom.metaNotification.hidden = true;
 	},
 
+	/**
+	 Shows an error as a meta message in the chat.
+	**/
+
+	showError: function(message) {
+		var meta = document.createElement('div');
+
+		meta.className = 'meta-passage meta-passage--error';
+		meta.textContent = message;
+
+		if (this.dom && this.dom.passage) {
+			this.dom.passage.appendChild(meta);
+			this.scrollChatIntoView();
+		}
+	},
 
 	/**
-	 Retrieves the speaker from the passage tags
-
-	 @method getPassageSpeaker
-	 @param passage {Passage} current window.passage object
-	 @return {String} Speaker name of passage
+	 Saves an undo checkpoint. Called right before a user choice is
+	 applied.
 	**/
-	
-	getPassageSpeaker: function(passage) {
-		if (!String.prototype.startsWith) {
-			String.prototype.startsWith = function(search, pos) {
-				return this.substr(!pos || pos < 0 ? 0 : +pos, search.length) === search;
+
+	pushCheckpoint: function() {
+		// snapshot the receipt on the (currently) last outgoing message,
+		// so undo can rewind a later Delivered -> Read flip
+
+		var lastReceipt = null;
+
+		for (var i = this.timeline.length - 1; i >= 0; i--) {
+			var entry = this.timeline[i];
+
+			if (entry.t === 'u' || entry.t === 'i' || entry.t === 'l') {
+				if (entry.r) {
+					lastReceipt = { status: entry.r, label: entry.rl };
+				}
+
+				break;
+			}
+		}
+
+		// keep overlay/notification narration restorable by undo
+
+		var meta = null;
+
+		if (!this.dom.metaOverlay.hidden) {
+			meta = { html: this.dom.metaOverlayContent.innerHTML, mode: 'overlay' };
+		}
+		else if (!this.dom.metaNotification.hidden) {
+			meta = {
+				html: this.dom.metaNotificationBody.innerHTML,
+				mode: 'notification'
 			};
 		}
-		var speakerTag = _.find(passage.tags, function(tag){ return tag.startsWith('speaker-'); });
-		if (typeof speakerTag === 'undefined') {
-			return 'undefined';
-		}
-		return speakerTag.substring(8);
-	},
-	
-	/**
-	 Returns the HTML source for a passage. This is most often used when
-	 embedding one passage inside another. In this instance, make sure to
-	 use <%= %> instead of <%- %> to avoid incorrectly encoding HTML entities.
 
-	 @method render
-	 @param idOrName {String or Number} ID or name of the passage
-	 @return {String} HTML source code
+		this.checkpoints.push({
+			state: deepClone(this.state),
+			domCount: this.dom.history.children.length,
+			timelineLength: this.timeline.length,
+			passageId: window.passage ? window.passage.id : null,
+			links: window.passage ? window.passage.links.slice() : [],
+			lastReceipt: lastReceipt,
+			meta: meta,
+			reactionLogLength: this._reactionLog.length
+		});
+
+		this.dom.undo.hidden = false;
+	},
+
+	/**
+	 Undoes the most recent choice: restores state, trims the chat back
+	 to the checkpoint and re-offers the responses that were available.
+	**/
+
+	undo: function() {
+		var checkpoint = this.checkpoints.pop();
+
+		if (!checkpoint) {
+			return;
+		}
+
+		this.cancelTimers();
+		this.hideTyping();
+		this.hideMeta();
+		this.clearUserResponses();
+
+		// everything since the checkpoint is discarded
+
+		this.dom.passage.textContent = '';
+
+		// revert reactions applied since the checkpoint
+
+		while (this._reactionLog.length > (checkpoint.reactionLogLength || 0)) {
+			var reaction = this._reactionLog.pop();
+			var badge = reaction.bubbles.querySelector('.chat-reaction');
+
+			if (reaction.prev) {
+				if (badge) {
+					badge.textContent = reaction.prev;
+				}
+			}
+			else if (badge) {
+				badge.remove();
+
+				var reactedWrapper = reaction.bubbles.closest(
+					'.chat-passage-wrapper'
+				);
+
+				if (reactedWrapper) {
+					reactedWrapper.classList.remove('has-reaction');
+				}
+			}
+		}
+
+		var history = this.dom.history;
+
+		while (history.children.length > checkpoint.domCount) {
+			history.lastElementChild.remove();
+		}
+
+		if (history.lastElementChild) {
+			history.lastElementChild.classList.remove('has-follow');
+		}
+
+		this.state = checkpoint.state;
+		this.timeline.length = checkpoint.timelineLength;
+		this.history = this.timeline
+			.filter(function(entry) { return entry.t === 'p'; })
+			.map(function(entry) { return entry.id; });
+
+		var passage = this.passage(checkpoint.passageId);
+
+		if (passage) {
+			window.passage = passage;
+			passage.links = checkpoint.links.slice();
+		}
+
+		if (checkpoint.lastReceipt) {
+			this.setReceipt(
+				checkpoint.lastReceipt.status,
+				checkpoint.lastReceipt.label
+			);
+		}
+
+		if (checkpoint.meta) {
+			this.showMeta(checkpoint.meta.html, checkpoint.meta.mode);
+		}
+
+		this.showUserResponses();
+		this.persist();
+		this.scrollChatIntoView();
+
+		if (this.checkpoints.length === 0) {
+			this.dom.undo.hidden = true;
+		}
+	},
+
+	/**
+	 Scrolls the chat panel so the newest messages are visible.
+	**/
+
+	scrollChatIntoView: function() {
+		var panel = this.dom.panel;
+
+		window.requestAnimationFrame(function() {
+			panel.scrollTo({
+				top: panel.scrollHeight,
+				behavior: 'smooth'
+			});
+		});
+	},
+
+	/**
+	 Appends the StoryColophon passage when an End-tagged passage shows.
+	**/
+
+	pcolophon: function() {
+		if (
+			window.passage.tags.indexOf('End') > -1 &&
+			this.passage('StoryColophon') !== null
+		) {
+			var meta = document.createElement('div');
+
+			meta.className = 'meta-passage meta-passage--colophon';
+			meta.innerHTML = this.passage('StoryColophon').render();
+			this.dom.passage.appendChild(meta);
+		}
+	},
+
+	/**
+	 Retrieves the speaker from a passage's tags. Returns null when the
+	 passage has no speaker-* tag (it renders as a meta passage).
+	**/
+
+	getPassageSpeaker: function(passage) {
+		var speakerTag = passage.tags.find(function(tag) {
+			return tag.indexOf(SPEAKER_TAG_PREFIX) === 0;
+		});
+
+		return speakerTag ? speakerTag.substring(SPEAKER_TAG_PREFIX.length) : null;
+	},
+
+	/**
+	 Human-readable version of a speaker id: the profile name if one is
+	 set, otherwise dashes become spaces ("speaker-happy-bot" is
+	 displayed as "happy bot").
+	**/
+
+	getSpeakerDisplayName: function(speaker) {
+		var profile = this.getSpeakerProfile(speaker);
+
+		return profile.name || speaker.replace(/-+/g, ' ').trim();
+	},
+
+	/**
+	 Returns the profile ({ name, avatar, color }) for a speaker id, or
+	 an empty object.
+	**/
+
+	getSpeakerProfile: function(speaker) {
+		return this.speakers[speaker] || {};
+	},
+
+	/**
+	 Parses the StorySpeakers passage into speaker profiles. One speaker
+	 per line: the speaker id, a colon, then a display name and/or
+	 semicolon-separated `avatar:`/`color:` properties, e.g.
+
+	   detective: Detective Marlowe; avatar: marlowe.png; color: #8e44ad
+	   you: color: #34c759
+	**/
+
+	parseSpeakers: function() {
+		var speakers = {};
+		var speakersPassage = this.passage('StorySpeakers');
+
+		if (speakersPassage) {
+			speakersPassage.source.split(/\r?\n/).forEach(function(line) {
+				var match = line.match(/^\s*[-*]?\s*([\w][\w-]*)\s*:\s*(.+)$/);
+
+				if (!match) {
+					return;
+				}
+
+				var profile = {};
+
+				match[2].split(';').forEach(function(part) {
+					var kv = part.match(/^\s*(name|avatar|color)\s*:\s*(.+?)\s*$/);
+
+					if (kv) {
+						profile[kv[1]] = kv[2];
+					}
+					else if (part.trim()) {
+						profile.name = part.trim();
+					}
+				});
+
+				speakers[match[1]] = profile;
+			});
+		}
+
+		return speakers;
+	},
+
+	/**
+	 Returns the HTML source for a passage, most often used to embed one
+	 passage in another.
 	**/
 
 	render: function(idOrName) {
@@ -687,169 +2507,295 @@ _.extend(Story.prototype, {
 	},
 
 	/**
-	 Jump from one passage to another, 
-	 delayed based on the length of the target passage
-
-	 @method showDelayed
-	 @param idOrName {String or Number} ID or name of the passage
+	 Shows a passage after a delay proportional to its length, with a
+	 typing indicator while "typing" it.
 	**/
 
-	showDelayed: function (idOrName, noHistory, noMove) {
-		var typingDelayRatio = 0.3;
-		var delayMS = this.getPassageDelay(idOrName);
+	showDelayed: function(idOrName, opts) {
+		var story = this;
+		var passage = this.passage(idOrName);
 
-		var speaker = this.getPassageSpeaker(this.passage(idOrName));
-
-		// show animation
-		if (speaker != 'undefined') {
-      this.delayedTypingEvent = _.delay(
-        function(){
-          story.showTyping(idOrName);
-        },
-        delayMS * typingDelayRatio
-      );
-		} else {
-			delayMS = 1000;
+		if (!passage) {
+			this.show(idOrName, opts); // surfaces the error message
+			return;
 		}
-    
-		this.delayedPassageEvent = _.delay(
-			function(){
+
+		var speaker = this.getPassageSpeaker(passage);
+		var delay = speaker
+			? this.getPassageDelay(idOrName)
+			: this.config.metaDelay;
+
+		if (speaker && this.config.typing) {
+			this.timers.push(
+				window.setTimeout(function() {
+					story.showTyping(idOrName);
+				}, Math.min(250, delay * 0.25))
+			);
+		}
+
+		this.timers.push(
+			window.setTimeout(function() {
 				story.hideTyping();
-				story.show(idOrName, noHistory, noMove);
-			},
-			delayMS
+				story.show(idOrName, opts);
+			}, delay)
 		);
+	},
 
+	cancelTimers: function() {
+		this.timers.forEach(function(id) {
+			window.clearTimeout(id);
+		});
+		this.timers = [];
 	},
 
 	/**
-	 get number of milliseconds to wait based on target passage text length
-
-	 @method getPassageDelay
-	 @param idOrName {String or Number} ID or name of the passage
+	 Number of milliseconds to "type" the target passage, based on its
+	 text length (links excluded), clamped to configured bounds.
 	**/
 
-	getPassageDelay: function (idOrName) {
+	getPassageDelay: function(idOrName) {
 		var target = this.passage(idOrName);
-		var targetSourceTextLength = $('<div></div>').html(target.source).text().length;
-		var targetUserResponseLength = _.reduce(
-			target.links, 
-			function(memo, link){ 
-				return memo + link.display.length + 4; // + 4 for '[['+']]'
-			}, 
-			0
+
+		if (!target) {
+			return this.config.minTypingDelay;
+		}
+
+		var probe = document.createElement('div');
+
+		probe.innerHTML = target.source
+			.replace(/\[\[.*?\]\]/g, '')
+			.replace(/\[(voice|location|timestamp)[^\]]*\]/gi, '');
+
+		var length = probe.textContent.trim().length;
+
+		return Math.max(
+			this.config.minTypingDelay,
+			Math.min(length * this.config.msPerChar, this.config.maxTypingDelay)
 		);
-		var targetTextLength = targetSourceTextLength - targetUserResponseLength;
-		var msPerChar = 20;
-		var delayMS = targetTextLength * msPerChar;
-		var delayThresholded = Math.min(delayMS, this.maxPassageDelay);
-		return delayThresholded;
 	},
 
 	/**
-	 turn typing animation on
-
-	 @method toggleTyping
-	 @param idOrName {String or Number} ID or name of the passage
+	 Shows the typing indicator, styled for the passage's speaker.
 	**/
 
-	showTyping: function (idOrName) {
-		var speaker = this.getPassageSpeaker(this.passage(idOrName));
-		$('#animation-container .chat-passage-wrapper').attr('data-speaker', speaker);
-		$('#animation-container .chat-passage-wrapper .chat-passage').attr('data-speaker', speaker);
-		$('#animation-container').fadeIn('slow');
+	showTyping: function(idOrName) {
+		var passage = this.passage(idOrName);
+		var speaker = passage ? this.getPassageSpeaker(passage) : null;
+
+		if (!speaker) {
+			return;
+		}
+
+		var typing = this.dom.typing;
+		var wrapper = typing.querySelector('.chat-passage-wrapper');
+		var avatar = typing.querySelector('.chat-avatar');
+
+		wrapper.setAttribute('data-speaker', speaker);
+
+		var previous =
+			this.dom.passage.lastElementChild ||
+			this.dom.history.lastElementChild;
+
+		wrapper.classList.toggle(
+			'chat-follow',
+			!!(
+				previous &&
+				previous.classList.contains('chat-passage-wrapper') &&
+				previous.getAttribute('data-speaker') === speaker
+			)
+		);
+
+		this.decorateAvatar(avatar, speaker);
+
+		var profile = this.getSpeakerProfile(speaker);
+		var textColor = profile.color ? contrastColor(profile.color) : null;
+
+		if (profile.color) {
+			wrapper.style.setProperty('--speaker-color', profile.color);
+		}
+		else {
+			wrapper.style.removeProperty('--speaker-color');
+		}
+
+		if (textColor) {
+			wrapper.style.setProperty('--speaker-text-color', textColor);
+		}
+		else {
+			wrapper.style.removeProperty('--speaker-text-color');
+		}
+
+		typing.hidden = false;
 		this.scrollChatIntoView();
 	},
 
 	/**
-	 turn typing animation off
-
-	 @method toggleTyping
-	 @param idOrName {String or Number} ID or name of the passage
+	 Hides the typing indicator.
 	**/
 
-	hideTyping: function (idOrName) {
-		$('#animation-container').hide();
+	hideTyping: function() {
+		this.dom.typing.hidden = true;
 	},
 
 	/**
-	 Returns a hash value representing the current state of the story.
-
-	 @method saveHash
-	 @return String hash
+	 Returns a hash value representing the current story progress.
 	**/
 
-	saveHash: function()
-	{	
-		return LZString.compressToBase64(JSON.stringify({ state: this.state, history: this.history }));
+	saveHash: function() {
+		return LZString.compressToBase64(
+			JSON.stringify({
+				state: this.state,
+				timeline: this.timeline,
+				/* legacy field so old integrations reading history keep working */
+				history: this.history
+			})
+		);
 	},
 
 	/**
-	 Sets the URL's hash property to the hash value created by saveHash().
-
-	 @method save
-	 @return String hash
+	 Sets the URL hash to the current progress, creating a bookmarkable
+	 save.
 	**/
 
-	save: function()
-	{
-		/**
-		 Triggered whenever story progress is saved.
+	save: function() {
+		dispatch('save', { story: this });
+		window.history.replaceState(null, '', '#' + this.saveHash());
+	},
 
-		 @event save
-		**/
-
-		$.event.trigger('save');
-		window.location.hash = this.saveHash();
+	saveKey: function() {
+		return 'chatbook-save-' + this.ifid;
 	},
 
 	/**
-	 Tries to restore the story state from a hash value generated by saveHash().
-
-	 @method restore
-	 @param hash {String} 
-	 @return {Boolean} whether the restore succeeded
+	 Writes an autosave if enabled.
 	**/
 
-	restore: function (hash)
-	{
-		/**
-		 Triggered before trying to restore from a hash.
-
-		 @event restore
-		**/
-
-		$.event.trigger('restore');
-
-		try
-		{
-			var save = JSON.parse(LZString.decompressFromBase64(hash));
-			this.state = save.state;
-			this.history = save.history;
-			this.show(this.history[this.history.length - 1], true);
+	persist: function() {
+		if (!this.config.autosave || !this.ifid) {
+			return;
 		}
-		catch (e)
-		{
-			// swallow the error
 
-			/**
-			 Triggered if there was an error with restoring from a hash.
+		try {
+			window.localStorage.setItem(this.saveKey(), this.saveHash());
+		}
+		catch (e) { /* storage unavailable or full */ }
+	},
 
-			 @event restorefailed
-			**/
+	/**
+	 Restores progress from a hash created by saveHash(), replaying the
+	 whole conversation instantly. Returns whether the restore succeeded.
+	**/
 
-			$.event.trigger('restorefailed', { error: e });
+	restore: function(hash) {
+		dispatch('restore', { story: this });
+
+		try {
+			var save = JSON.parse(LZString.decompressFromBase64(hash));
+			var timeline = save.timeline;
+
+			if (!timeline && save.history) {
+				// legacy hash from Trialogue 1.x
+				timeline = save.history.map(function(id) {
+					return { t: 'p', id: id };
+				});
+			}
+
+			if (!timeline || !timeline.length) {
+				throw new Error('Save data is empty');
+			}
+
+			this.cancelTimers();
+			this.hideTyping();
+			this.hideMeta();
+			this.clearUserResponses();
+			this.state = {};
+			this.timeline = [];
+			this.history = [];
+			this.checkpoints = [];
+			this._reactionLog = [];
+			this.dom.history.textContent = '';
+			this.dom.passage.textContent = '';
+			this.dom.undo.hidden = true;
+
+			var story = this;
+
+			timeline.forEach(function(entry) {
+				var receipt = entry.r
+					? { status: entry.r, label: entry.rl }
+					: null;
+
+				if (entry.t === 'u') {
+					story.showUserBubble(entry.text, {
+						instant: true,
+						receipt: receipt
+					});
+				}
+				else if (entry.t === 'i') {
+					story.state.lastPhoto = entry.name;
+					story.state.sentPhotos =
+						(story.state.sentPhotos || []).concat(entry.name);
+					story.showPhotoBubble(entry.name, {
+						instant: true,
+						receipt: receipt
+					});
+				}
+				else if (entry.t === 'l') {
+					story.state.playerLocation = {
+						lat: entry.lat,
+						lon: entry.lon
+					};
+					story.showLocationBubble(entry.lat, entry.lon, entry.label, {
+						instant: true,
+						receipt: receipt
+					});
+				}
+				else if (entry.t === 'r') {
+					story.state.lastReaction = entry.emoji;
+					story.react(entry.emoji, 'in');
+				}
+				else {
+					story.show(entry.id, {
+						record: false,
+						instant: true
+					});
+					story.timeline.push({ t: 'p', id: entry.id });
+					story.history.push(entry.id);
+				}
+			});
+
+			// replaying re-runs template side effects; the explicitly
+			// saved state still wins
+
+			if (save.state) {
+				this.state = save.state;
+			}
+
+			this.persist();
+		}
+		catch (e) {
+			dispatch('restorefailed', { error: e });
 			return false;
-		};
+		}
 
-		/**
-		 Triggered after completing a restore from a hash.
-
-		 @event restore:after
-		**/
-
-		$.event.trigger('restore:after');
+		dispatch('restore:after', { story: this });
 		return true;
+	},
+
+	/**
+	 Clears saved progress and restarts the story from the beginning.
+	**/
+
+	restart: function() {
+		try {
+			window.localStorage.removeItem(this.saveKey());
+		}
+		catch (e) { /* storage unavailable */ }
+
+		window.history.replaceState(
+			null,
+			'',
+			window.location.pathname + window.location.search
+		);
+		window.location.reload();
 	}
 });
 
