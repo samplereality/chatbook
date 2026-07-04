@@ -487,6 +487,13 @@ Object.assign(Story.prototype, {
 		var openDialog = function(event) {
 			event.preventDefault();
 
+			// the restart control lives in the menu modal; close it
+			// first so the confirmation isn't stacked behind it
+
+			if (story.dom.menuDialog.open) {
+				story.dom.menuDialog.close();
+			}
+
 			if (typeof story.dom.dialog.showModal === 'function') {
 				story.dom.dialog.showModal();
 			}
@@ -2668,18 +2675,21 @@ Object.assign(Story.prototype, {
 				: 'light';
 		};
 
+		var iconSlot = button.querySelector('.menu-action-icon') || button;
+		var labelSlot = button.querySelector('.menu-action-label');
+
 		var updateIcon = function() {
 			var dark = effectiveTheme() === 'dark';
+			var label = dark ? 'Switch to light mode' : 'Switch to dark mode';
 
-			button.innerHTML = dark ? SUN_SVG : MOON_SVG;
-			button.setAttribute(
-				'title',
-				dark ? 'Switch to light mode' : 'Switch to dark mode'
-			);
-			button.setAttribute(
-				'aria-label',
-				dark ? 'Switch to light mode' : 'Switch to dark mode'
-			);
+			iconSlot.innerHTML = dark ? SUN_SVG : MOON_SVG;
+
+			if (labelSlot) {
+				labelSlot.textContent = label;
+			}
+
+			button.setAttribute('title', label);
+			button.setAttribute('aria-label', label);
 		};
 
 		button.addEventListener('click', function() {

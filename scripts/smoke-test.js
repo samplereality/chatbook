@@ -124,6 +124,18 @@ async function run() {
 		'sidebar columns are gone',
 		(await page.locator('.left-sidebar, .right-sidebar').count()) === 0
 	);
+	check(
+		'undo lives on the right, next to the menu',
+		await page.evaluate(() => {
+			const right = document.querySelector('.chat-header-right');
+
+			return (
+				!!right.querySelector('#nav-link-undo') &&
+				!!right.querySelector('#nav-link-menu') &&
+				!document.querySelector('.chat-header-left #nav-link-undo')
+			);
+		})
+	);
 	await page.click('#nav-link-menu');
 	await page.waitForSelector('#menu-dialog[open]');
 	check(
@@ -132,11 +144,12 @@ async function run() {
 			.locator('#menu-dialog #menu-container h3')
 			.textContent()) === 'Welcome'
 	);
-	await page.click('[data-menu-close]');
 	check(
-		'menu modal closes',
-		(await page.locator('#menu-dialog[open]').count()) === 0
+		'theme and restart controls moved into the menu',
+		(await page.locator('#menu-dialog #nav-link-theme').count()) === 1 &&
+		(await page.locator('#menu-dialog #nav-link-restart').count()) === 1
 	);
+	// theme toggle now lives in the menu
 	await page.click('#nav-link-theme');
 	check(
 		'theme toggle switches to dark mode',
@@ -158,6 +171,11 @@ async function run() {
 		(await page.evaluate(() =>
 			document.documentElement.getAttribute('data-theme')
 		)) === 'light'
+	);
+	await page.click('[data-menu-close]');
+	check(
+		'menu modal closes',
+		(await page.locator('#menu-dialog[open]').count()) === 0
 	);
 	// clear the explicit choice so later dark-mode screenshots follow
 	// the emulated system scheme again
