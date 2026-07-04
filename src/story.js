@@ -86,7 +86,7 @@ function deepClone(value) {
 }
 
 /*
- Chatbook keeps its original (Snowman 1 / Trialogue) event names and
+ Subtext keeps its original (Snowman 1 / Trialogue) event names and
  also dispatches the Snowman 2 sm.* equivalents, so scripts written
  against either generation of documentation work.
 */
@@ -142,7 +142,7 @@ var Story = function() {
 
 	if (!el) {
 		throw new Error(
-			'Chatbook could not find a <tw-storydata> element. ' +
+			'Subtext could not find a <tw-storydata> element. ' +
 			'(Twine 1 documents are no longer supported.)'
 		);
 	}
@@ -2555,7 +2555,7 @@ Object.assign(Story.prototype, {
 	},
 
 	themeKey: function() {
-		return 'chatbook-theme-' + this.ifid;
+		return 'subtext-theme-' + this.ifid;
 	},
 
 	/**
@@ -3074,7 +3074,7 @@ Object.assign(Story.prototype, {
 	},
 
 	saveKey: function() {
-		return 'chatbook-save-' + this.ifid;
+		return 'subtext-save-' + this.ifid;
 	},
 
 	/**

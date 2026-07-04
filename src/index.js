@@ -95,7 +95,7 @@ window.fade_in_content_containers = function() {
 /*
  * Snowman utility functions, reimplemented without Underscore/jQuery
  * so scripts and passages written against Snowman 2 documentation work
- * in Chatbook.
+ * in Subtext.
  */
 
 /**

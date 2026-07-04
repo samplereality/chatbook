@@ -1,5 +1,5 @@
 /*
- Compiles docs/chatbook-demo.twee into docs/chatbook-demo.html using the
+ Compiles docs/subtext-demo.twee into docs/subtext-demo.html using the
  freshly built story format — a tiny stand-in for Tweego so the demo can be
  rebuilt (and the format smoke-tested) with no external tools.
 
@@ -12,8 +12,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const input = process.argv[2] || path.join(ROOT, 'docs/chatbook-demo.twee');
-const output = process.argv[3] || path.join(ROOT, 'docs/chatbook-demo.html');
+const input = process.argv[2] || path.join(ROOT, 'docs/subtext-demo.twee');
+const output = process.argv[3] || path.join(ROOT, 'docs/subtext-demo.html');
 
 function escapeHtml(text) {
 	return text
@@ -101,9 +101,9 @@ function compile(tweeSource, formatSource) {
 	const storyEl =
 		'<tw-storydata name="' + escapeHtml(storyName) + '" ' +
 		'startnode="' + startNode + '" ' +
-		'creator="chatbook-build-demo" creator-version="1.0" ' +
+		'creator="subtext-build-demo" creator-version="1.0" ' +
 		'ifid="' + escapeHtml(meta.ifid || '') + '" ' +
-		'format="Chatbook" options="" hidden>' +
+		'format="Subtext" options="" hidden>' +
 		styleEls.join('') + scriptEls.join('') + passageEls.join('') +
 		'</tw-storydata>';
 

@@ -8,7 +8,7 @@
    <%  statements  %>  evaluate
 
  Templates are invoked with a data object whose keys become in-scope
- variables (Chatbook passes `s` for story state and `$` for the ready
+ variables (Subtext passes `s` for story state and `$` for the ready
  helper), matching Underscore's `with(data)` behavior.
 */
 

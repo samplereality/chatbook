@@ -1,12 +1,12 @@
-<p align="center"><img src="src/icon.svg" alt="Chatbook logo"></p>
-<h1 align="center">Chatbook</h1>
+<p align="center"><img src="src/icon.svg" alt="Subtext logo"></p>
+<h1 align="center">Subtext</h1>
 
-Chatbook is a story format for [Twine 2](https://twinery.org/) that turns a branching narrative into an interactive chat or text-message story.
+Subtext is a story format for [Twine 2](https://twinery.org/) that turns a branching narrative into an interactive chat or text-message story.
 
-**Docs:** https://samplereality.github.io/chatbook/  
-**Play the demo:** https://samplereality.github.io/chatbook/demo.html
+**Docs:** https://samplereality.github.io/subtext/  
+**Play the demo:** https://samplereality.github.io/subtext/demo.html
 
-Chatbook is a successor to [Trialogue](https://github.com/phivk/trialogue) by Philo van Kemenade. The name is a small homage to Chris Klimas's [Chapbook](https://klembot.github.io/chapbook/) format. The lineage runs Chatbook → Trialogue → [Paloma](http://mcdemarco.net/tools/scree/paloma/) → [Snowman](https://github.com/videlais/snowman).
+Subtext is a successor to [Trialogue](https://github.com/phivk/trialogue) by Philo van Kemenade. The name is what chat fiction runs on: the message left on *Delivered*, the *Read* with no reply, the typing that starts and stops — everything underneath what's actually said. The lineage runs Subtext → Trialogue → [Paloma](http://mcdemarco.net/tools/scree/paloma/) → [Snowman](https://github.com/videlais/snowman).
 
 ## What's new in 2.0
 
@@ -85,7 +85,7 @@ story.config.titleNotifications = true; // "(2) Story" tab title when hidden
 
 ### Utility functions
 
-Several Snowman utility functions are built in (reimplemented without jQuery/Underscore), so snippets from Snowman documentation work in Chatbook:
+Several Snowman utility functions are built in (reimplemented without jQuery/Underscore), so snippets from Snowman documentation work in Subtext:
 
 ```js
 either('hey!', 'yo!', ['hiya!', 'hello hello'])  // random pick; arrays are flattened
@@ -196,7 +196,7 @@ story.config.metaStyle = 'overlay';
 story.config.metaStyle = 'notification';
 ```
 
-- **`chat`** — centered system-style text inside the conversation (the original Trialogue behavior Chatbook inherits). Tight and contained, reads like an iMessage system message.
+- **`chat`** — centered system-style text inside the conversation (the original Trialogue behavior Subtext inherits). Tight and contained, reads like an iMessage system message.
 - **`overlay`** — the narration floats over the blurred, dimmed chat, like the camera pulling back from the phone. The player's choices stay visible and tappable below it, and the veil lifts as soon as they choose or the next message arrives. Best for scene breaks and interiority that shouldn't pretend to be part of the phone.
 - **`notification`** — the narration drops in as a phone-style notification banner (labeled with the story name by default; change it with `story.config.metaNotificationLabel`). It stays inside the device's fiction — the narrator as an app pinging you. Tapping the banner dismisses it.
 
@@ -384,7 +384,7 @@ The Menu button (☰) only appears once the menu has content. The Trialogue 1.x 
 
 ## Accessibility
 
-Chatbook is built to WCAG 2.1 AA and tested with axe-core on every run of the test suite. What players get:
+Subtext is built to WCAG 2.1 AA and tested with axe-core on every run of the test suite. What players get:
 
 - **Screen readers:** the conversation is a `role="log"` live region, and messages are never moved or re-inserted in the DOM, so each one is announced exactly once. The typing indicator announces *"Sam is typing"* (localize via `story.config.typingLabel`), narration overlays and notifications are polite status regions, restoring a save replays silently instead of flooding the reader, and reactions, receipts, voice memos, and location cards all carry proper labels.
 - **Keyboard:** every control is a real button or link with a visible focus indicator; after choosing a reply, focus stays anchored on the reply panel; dialogs are native `<dialog>` elements (focus trapping and Escape included).
@@ -398,23 +398,23 @@ What authors should still do: write alt text in image HTML (`<img src="…" alt=
 In Twine 2: **Twine → Story Formats → Add a New Format** and paste:
 
 ```
-https://samplereality.github.io/chatbook/format.js
+https://samplereality.github.io/subtext/format.js
 ```
 
-(That URL is the copy of `dist/Twine2/Chatbook/format.js` published by this repository's GitHub Pages site, redeployed automatically on every push to `main`.)
+(That URL is the copy of `dist/Twine2/Subtext/format.js` published by this repository's GitHub Pages site, redeployed automatically on every push to `main`.)
 
 ## Using the format with Tweego
 
-Prefer writing Twee in a text editor? Chatbook works with [Tweego](https://www.motoslave.net/tweego/), the command-line Twine compiler.
+Prefer writing Twee in a text editor? Subtext works with [Tweego](https://www.motoslave.net/tweego/), the command-line Twine compiler.
 
 **1. Install the format where Tweego can find it.** Tweego looks for story formats in a `storyformats` directory — next to your project, next to the `tweego` binary, or anywhere listed in the `TWEEGO_PATH` environment variable. Each format lives in its own subdirectory containing a `format.js`:
 
 ```bash
-mkdir -p storyformats/chatbook
-curl -o storyformats/chatbook/format.js https://samplereality.github.io/chatbook/format.js
+mkdir -p storyformats/subtext
+curl -o storyformats/subtext/format.js https://samplereality.github.io/subtext/format.js
 ```
 
-(Or copy `dist/Twine2/Chatbook/` from a clone of this repository into `storyformats/`.) Confirm it's visible — and note its ID — with:
+(Or copy `dist/Twine2/Subtext/` from a clone of this repository into `storyformats/`.) Confirm it's visible — and note its ID — with:
 
 ```bash
 tweego --list-formats
@@ -426,7 +426,7 @@ tweego --list-formats
 :: StoryData
 {
   "ifid": "YOUR-STORY-IFID",
-  "format": "Chatbook",
+  "format": "Subtext",
   "format-version": "2.0.0"
 }
 ```
@@ -439,25 +439,25 @@ tweego --list-formats
 tweego -o story.html story.twee
 ```
 
-If you skip the StoryData declaration, pass the format explicitly with `-f chatbook` (the ID from `--list-formats`). Other handy invocations:
+If you skip the StoryData declaration, pass the format explicitly with `-f subtext` (the ID from `--list-formats`). Other handy invocations:
 
 ```bash
 tweego -w -o story.html story.twee    # watch mode: recompile on every save
 tweego -d -o story.twee story.html    # decompile a published story back to Twee
 ```
 
-This repository's demo story, [`docs/chatbook-demo.twee`](docs/chatbook-demo.twee), is a ready-made example of a Tweego-compatible Chatbook project.
+This repository's demo story, [`docs/subtext-demo.twee`](docs/subtext-demo.twee), is a ready-made example of a Tweego-compatible Subtext project.
 
 ## Development
 
 ```
 npm install
-npm run build   # build dist/Twine2/Chatbook/format.js
-npm run demo    # build + compile docs/chatbook-demo.twee to docs/chatbook-demo.html
+npm run build   # build dist/Twine2/Subtext/format.js
+npm run demo    # build + compile docs/subtext-demo.twee to docs/subtext-demo.html
 npm test        # build + demo + headless-browser smoke test
 ```
 
-The demo compiler (`scripts/build-demo.js`) is a minimal Twee-to-HTML stand-in for Tweego, so you can iterate on the format without external tools. Tweego works too — see [Using the format with Tweego](#using-the-format-with-tweego), pointing `storyformats/chatbook/` at the freshly built `dist/Twine2/Chatbook/`.
+The demo compiler (`scripts/build-demo.js`) is a minimal Twee-to-HTML stand-in for Tweego, so you can iterate on the format without external tools. Tweego works too — see [Using the format with Tweego](#using-the-format-with-tweego), pointing `storyformats/subtext/` at the freshly built `dist/Twine2/Subtext/`.
 
 ## Migrating from Trialogue
 
@@ -470,4 +470,4 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 # Credits
 
-Chatbook is developed by [Mark Sample](https://www.samplereality.com) and builds on [Trialogue](https://github.com/phivk/trialogue) by [Philo van Kemenade](https://github.com/phivk), which in turn is based on [Paloma](http://mcdemarco.net/tools/scree/paloma/) by M. C. DeMarco, a Jonah-style story format based on [Snowman](https://github.com/videlais/snowman) by [Chris Klimas](https://github.com/klembot) and [Dan Cox](https://videlais.com/). The name is an homage to Klimas's [Chapbook](https://klembot.github.io/chapbook/) format.
+Subtext is developed by [Mark Sample](https://www.samplereality.com) and builds on [Trialogue](https://github.com/phivk/trialogue) by [Philo van Kemenade](https://github.com/phivk), which in turn is based on [Paloma](http://mcdemarco.net/tools/scree/paloma/) by M. C. DeMarco, a Jonah-style story format based on [Snowman](https://github.com/videlais/snowman) by [Chris Klimas](https://github.com/klembot) and [Dan Cox](https://videlais.com/).
