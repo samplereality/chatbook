@@ -39,14 +39,14 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--t-page-bg-default: #000000;
+		--t-page-bg-default: #3d3d3d;
 		--t-bg-default: #0a0a0d;
 		--t-elevated-default: #1c1c21;
 		--t-surface-default: rgba(20, 20, 24, 0.88);
 		--t-border-default: rgba(255, 255, 255, 0.1);
 		--t-text-default: #f2f2f4;
 		--t-muted-default: #98989f;
-		--t-bubble-in-default: #26262b;
+		--t-bubble-in-default: #36363d;
 		--t-bubble-in-text-default: #f2f2f4;
 		--t-accent-default: #409cff;
 		--t-accent-deep-default: #0a84ff;
@@ -74,14 +74,14 @@
 }
 
 :root[data-theme="dark"] {
-	--t-page-bg-default: #000000;
+	--t-page-bg-default: #3d3d3d;
 	--t-bg-default: #0a0a0d;
 	--t-elevated-default: #1c1c21;
 	--t-surface-default: rgba(20, 20, 24, 0.88);
 	--t-border-default: rgba(255, 255, 255, 0.1);
 	--t-text-default: #f2f2f4;
 	--t-muted-default: #98989f;
-	--t-bubble-in-default: #26262b;
+	--t-bubble-in-default: #36363d;
 	--t-bubble-in-text-default: #f2f2f4;
 	--t-accent-default: #409cff;
 	--t-accent-deep-default: #0a84ff;
