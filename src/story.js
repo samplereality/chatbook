@@ -271,6 +271,13 @@ var Story = function() {
 		timerLabel: 'You have %s seconds to reply',
 		/* accessible label on the free-text send button */
 		inputSendLabel: 'Send',
+		/* helper text under the chat: `hint` above choice chips (also
+		   set via inject_hint()), `inputHint` above the free-text
+		   composer, and hintFadeAfter retires both once the player has
+		   made that many moves (null = never fade, 0 = never show) */
+		hint: '',
+		inputHint: '',
+		hintFadeAfter: null,
 		/* default label on a location-share response button */
 		locationButtonLabel: 'Share my location',
 		/* label under the map card of a shared player location */
@@ -1512,6 +1519,38 @@ Object.assign(Story.prototype, {
 		if (timeoutOffer && this.config.timers) {
 			this.startResponseTimer(timeoutOffer);
 		}
+
+		this.updateHint();
+	},
+
+	/**
+	 Refreshes the helper text above the responses: the input hint when
+	 a composer is showing, the regular hint otherwise — and nothing at
+	 all once the player has made config.hintFadeAfter moves (they know
+	 how the system works by then).
+	**/
+
+	updateHint: function() {
+		if (!this.dom.hint) {
+			return;
+		}
+
+		var fade = this.config.hintFadeAfter;
+		var moves = this.timeline.filter(function(entry) {
+			return entry.t !== 'p';
+		}).length;
+		var html = '';
+
+		if (!(typeof fade === 'number' && moves >= fade)) {
+			var hasComposer = !!this.dom.responses.querySelector('.chat-composer');
+
+			html =
+				hasComposer && this.config.inputHint
+					? this.config.inputHint
+					: this.config.hint;
+		}
+
+		this.dom.hint.innerHTML = html || '';
 	},
 
 	/**

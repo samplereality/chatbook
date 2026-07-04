@@ -106,6 +106,12 @@ async function run() {
 		'two responses offered',
 		(await page.locator('.user-response').count()) === 2
 	);
+	check(
+		'hint text shown while the player is new',
+		(await page.textContent('#user-response-hint')).indexOf(
+			'Choose an option'
+		) !== -1
+	);
 
 	console.log('menu modal & theme toggle');
 	check(
@@ -570,6 +576,24 @@ async function run() {
 
 	console.log('free text input');
 	await page.waitForSelector('.chat-composer-input', { timeout: 15000 });
+	check(
+		'hint retired after the configured number of moves',
+		(await page.textContent('#user-response-hint')).trim() === ''
+	);
+	await page.evaluate(() => {
+		// show hints again to verify the composer-specific wording
+		window.story.config.hintFadeAfter = null;
+		window.story.updateHint();
+	});
+	check(
+		'composer shows its own hint text',
+		(await page.textContent('#user-response-hint')) ===
+			'Type your reply to continue'
+	);
+	await page.evaluate(() => {
+		window.story.config.hintFadeAfter = 4;
+		window.story.updateHint();
+	});
 	await page.fill('.chat-composer-input', 'clogs');
 	await page.click('.chat-composer-send');
 	await page.waitForSelector('.chat-passage:has-text("think geography")', {

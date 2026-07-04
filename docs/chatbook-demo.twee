@@ -17,6 +17,11 @@ var userResponseHintContent  = 'Choose an option to continue the conversation';
 inject_menu(menuContent);
 inject_hint(userResponseHintContent);
 
+// different helper text above the free-text composer, and stop
+// showing hints once the player has made a few moves
+story.config.inputHint = 'Type your reply to continue';
+story.config.hintFadeAfter = 4;
+
 story.config.sounds = true;
 
 // narrator (speakerless) passages float over the blurred chat;

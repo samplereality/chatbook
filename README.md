@@ -367,10 +367,12 @@ The story presents as a phone — a single chat column, full-bleed on small scre
 ```js
 inject_menu('<h3>About</h3><p>…</p>');           // content of the Menu modal
 inject_nav_menu('about');                        // custom label for the Menu button (replaces the ☰ icon)
-inject_hint('Choose an option to continue');     // text above the choices
+inject_hint('Choose an option to continue');     // text above the choices (same as story.config.hint)
 inject_modal('Leave?', '<p>Progress will be lost.</p>', '<button data-dismiss="modal">Stay</button>');
 inject_nav_back('← back');                       // shows a back link in the header
 ```
+
+The hint is smarter than a static label: `story.config.inputHint` shows different text while a free-text composer is up (e.g. *"Type your reply to continue"*), and `story.config.hintFadeAfter = 4` retires the helper text entirely once the player has made that many moves — training wheels off. (`null` keeps hints forever; `0` never shows them.)
 
 The Menu button (☰) only appears once the menu has content. The Trialogue 1.x helpers `inject_left_sidebar()` / `inject_right_sidebar()` — which used to render desktop side columns — still work as deprecated aliases, each filling an additional section of the menu. The header always includes an Undo button (↩, appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
 
