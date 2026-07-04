@@ -2320,6 +2320,23 @@ Object.assign(Story.prototype, {
 		badge.textContent = emoji;
 		badge.setAttribute('aria-label', 'Reaction: ' + emoji);
 		wrapper.classList.add('has-reaction');
+
+		// center the badge on the last bubble's top corner — the corner
+		// facing whoever sent the reaction
+
+		var bubbleEls = wrapper.querySelectorAll('.chat-passage');
+		var lastBubble = bubbleEls[bubbleEls.length - 1];
+
+		if (lastBubble) {
+			var outgoing = wrapper.getAttribute('data-speaker') === 'you';
+			var x = outgoing
+				? lastBubble.offsetLeft + 12
+				: lastBubble.offsetLeft + lastBubble.offsetWidth - 12;
+
+			badge.style.left = x + 'px';
+			badge.style.top = lastBubble.offsetTop + 'px';
+		}
+
 		this.persist();
 	},
 

@@ -554,6 +554,24 @@ async function run() {
 			.locator('.chat-passage-wrapper[data-speaker="you"] .chat-reaction')
 			.textContent()) === '❤️'
 	);
+	check(
+		'reaction badge superimposed on the bubble corner',
+		await page.evaluate(() => {
+			const wrapper = document.querySelector(
+				'.chat-passage-wrapper[data-speaker="you"].has-reaction'
+			);
+			const bubble = wrapper.querySelector('.chat-passage');
+			const badge = wrapper.querySelector('.chat-reaction');
+			const b = bubble.getBoundingClientRect();
+			const r = badge.getBoundingClientRect();
+			const cx = r.left + r.width / 2;
+			const cy = r.top + r.height / 2;
+
+			// badge center sits on the bubble's top edge, near its left
+			// (sender-facing) corner — half on, half off
+			return Math.abs(cy - b.top) < 6 && cx > b.left && cx < b.left + 40;
+		})
+	);
 	await page.click('.user-response--react');
 	await page.waitForSelector('.chat-passage:has-text("all I need")', {
 		timeout: 15000
@@ -707,6 +725,30 @@ async function run() {
 		timeout: 15000
 	});
 	check('story continued to the timeout target', true);
+
+	console.log('typing dots animate');
+	await page.evaluate(() => window.story.showTyping('ok'));
+
+	const dotTransforms = await page.evaluate(async () => {
+		const dots = [...document.querySelectorAll('.chat-typing .dot')];
+		const seen = new Set();
+
+		for (let i = 0; i < 6; i++) {
+			dots.forEach((dot) => {
+				seen.add(getComputedStyle(dot).transform);
+			});
+			await new Promise((resolve) => setTimeout(resolve, 140));
+		}
+
+		return [...seen];
+	});
+
+	await page.evaluate(() => window.story.hideTyping());
+	check(
+		'typing dots visibly bounce (' + dotTransforms.length + ' transform states)',
+		dotTransforms.length > 3 &&
+		dotTransforms.some((t) => t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)')
+	);
 
 	check('no page errors (' + errors.join('; ').slice(0, 300) + ')', errors.length === 0);
 
