@@ -57,6 +57,14 @@ Meet me at the docks in an hour?
 
 - Each paragraph (blank-line separated) becomes its own bubble.
 - `[[links]]` become the player's quick-reply choices. The usual Twine link forms work: `[[display|target]]`, `[[display->target]]`, `[[target<-display]]`.
+- **Sending different text than the pill shows.** By default the pill's label is also what gets sent as the player's message. Add a `(send: …)` suffix to the label to send something different — great for a terse pill that reads fuller in the thread, or a "start" button that shouldn't literally say "start":
+
+  ```
+  [[sure (send: sure, that works — see you at midnight)->meet]]
+  [[start (send:)->intro]]      // pill says "start", sends nothing
+  ```
+
+  An empty `(send:)` sends no bubble at all — the story just advances. (From code, `story.choose(target, text)` does the same; pass an empty string to advance silently.)
 - A passage **without** a `speaker-` tag belongs to the narrator — see [Narration](#narration) for the three ways it can be presented.
 - Speaker names get an avatar automatically (initial + a stable color derived from the name). Multi-word names use dashes: `speaker-happy-bot` displays as "happy bot".
 - Markdown, inline HTML, and Snowman-style `<%= s.variable %>` templates are all supported. Story state lives in `s` (an alias for `window.story.state`).
