@@ -774,6 +774,49 @@ async function run() {
 		dotTransforms.some((t) => t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)')
 	);
 
+	console.log('pill vs sent text');
+	await page.evaluate(() => window.story.show('pill-demo'));
+	await page.waitForSelector('.user-response:has-text("sure")', {
+		timeout: 15000
+	});
+	check(
+		'pill label differs from the sent-text override',
+		(await page
+			.locator('.user-response[data-sent]:has-text("sure")')
+			.getAttribute('data-sent')) ===
+			'sure, that makes total sense now that you explain it'
+	);
+	const bubblesBeforePill = await page.locator(
+		'.chat-passage[data-speaker="you"]'
+	).count();
+	await page.click('.user-response:has-text("sure")');
+	check(
+		'sent bubble shows the override text, not the pill label',
+		(await page
+			.locator('.chat-passage[data-speaker="you"]')
+			.last()
+			.textContent()).indexOf('now that you explain it') !== -1
+	);
+	await page.waitForSelector('.chat-passage:has-text("elaborated")', {
+		timeout: 15000
+	});
+	await page.evaluate(() => window.story.show('pill-demo'));
+	await page.waitForSelector('.user-response:has-text("just react")', {
+		timeout: 15000
+	});
+	const bubblesBeforeSilent = await page.locator(
+		'.chat-passage[data-speaker="you"]'
+	).count();
+	await page.click('.user-response:has-text("just react")');
+	await page.waitForSelector('.chat-passage:has-text("nothing at all")', {
+		timeout: 15000
+	});
+	check(
+		'an empty (send:) advances without a player bubble',
+		(await page.locator('.chat-passage[data-speaker="you"]').count()) ===
+			bubblesBeforeSilent
+	);
+
 	console.log('multi-conversation inbox');
 
 	const INBOX_DEMO = path.join(__dirname, '..', 'docs', 'subtext-inbox-demo.html');

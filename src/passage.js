@@ -174,7 +174,21 @@ function render(source) {
 		// not inline content
 
 		if (window.passage) {
-			window.passage.links.push({ display: display, target: target });
+			var link = { display: display, target: target };
+
+			// a `(send: ...)` suffix in the pill label overrides the text
+			// sent as the player's message — an empty one sends nothing:
+			//   [[yeah (send: yeah, I'll be there)->meet]]
+			//   [[start (send:)->intro]]
+
+			var sendMatch = display.match(/\(send:([^)]*)\)\s*$/i);
+
+			if (sendMatch) {
+				link.display = display.slice(0, sendMatch.index).trim();
+				link.sent = sendMatch[1].trim();
+			}
+
+			window.passage.links.push(link);
 		}
 
 		return '';

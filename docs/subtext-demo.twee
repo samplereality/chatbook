@@ -178,3 +178,18 @@ think geography. I mentioned it earlier 🌍<% } %>
 
 <% if ((s.lastInput || '').trim().toLowerCase() === 'amsterdam') { %>[[start over?->Start]]<% } else { %>[[input:try again…->password-check]]
 [[give up->Start]]<% } %>
+
+:: pill-demo [speaker-2]
+by the way — a reply pill and the message it sends don't have to match
+
+tap "sure" 👇
+
+[[sure (send: sure, that makes total sense now that you explain it)->pill-demo-2]]
+[[just react (send:)->pill-demo-2]]
+
+:: pill-demo-2 [speaker-2]
+see? the first pill elaborated; the second sent nothing at all
+
+handy for a "start" button, or a terse choice that reads fuller in the thread
+
+[[start over?->Start]]

@@ -564,10 +564,15 @@ Object.assign(Story.prototype, {
 			}
 
 			event.preventDefault();
-			story.choose(
-				link.getAttribute('data-passage'),
-				link.textContent.trim()
-			);
+
+			// data-sent (if present) overrides what the player "sends";
+			// otherwise the pill's own text is sent
+
+			var sent = link.hasAttribute('data-sent')
+				? link.getAttribute('data-sent')
+				: link.textContent.trim();
+
+			story.choose(link.getAttribute('data-passage'), sent);
 		});
 
 		// audio can only start after a user gesture; unlock it on the
@@ -747,7 +752,7 @@ Object.assign(Story.prototype, {
 	 passage after a typing delay.
 	**/
 
-	choose: function(targetName, displayText) {
+	choose: function(targetName, sentText) {
 		if (!this.passage(targetName)) {
 			this.showError(
 				this.errorMessage.replace(
@@ -765,8 +770,15 @@ Object.assign(Story.prototype, {
 		this.focusResponses();
 
 		this.state.timedOut = false;
-		this.showUserBubble(displayText);
-		this.playSound('send');
+
+		// an empty message (from a `(send:)` link) advances the story
+		// without adding a player bubble
+
+		if (sentText && sentText.trim() !== '') {
+			this.showUserBubble(sentText);
+			this.playSound('send');
+		}
+
 		this.showDelayed(targetName, { noMove: true });
 	},
 
@@ -1529,6 +1541,14 @@ Object.assign(Story.prototype, {
 			button.type = 'button';
 			button.className = 'user-response';
 			button.setAttribute('data-passage', link.target);
+
+			// a link may send different text than its pill label shows
+			// (or nothing at all); carry it on the button
+
+			if (typeof link.sent === 'string') {
+				button.setAttribute('data-sent', link.sent);
+			}
+
 			button.innerHTML = link.display;
 			button.style.animationDelay = (index * 60) + 'ms';
 			story.dom.responses.appendChild(button);
