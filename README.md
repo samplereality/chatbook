@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.3.0"
+  "format-version": "2.4.0"
 }
 ```
 
@@ -808,9 +808,9 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Unreleased
+### Version 2.4
 
-- **The story keeps score.** `s.previousPassage` (how the player arrived), `s.replySeconds` (how long they deliberated), and a `choice` event on every reply round out the automatic trackers alongside `s.lastChoice`.
+- **The story keeps score.** `s.lastChoice` (which pill was tapped), `s.previousPassage` (how the player arrived), `s.replySeconds` (how long they deliberated), and a `choice` event on every reply — the automatic trackers that let several pills share a target and still branch. See [Reply pills and sent text](#reply-pills-and-sent-text) and [Recipes](#recipes).
 - **Cross-playthrough memory.** `story.remember()` / `story.recall()` / `story.forget()` persist values per story across restarts — endings-seen counters, New Game+ unlocks, characters who remember your last run.
 - **A [Recipes](#recipes) section** collecting common patterns: arrival-based branching, hesitation, affinity meters, disappearing hub choices, and playthrough memory.
 
@@ -818,7 +818,6 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 - **Debug mode.** Twine's Test button, `tweego -t`, or `?debug` opens a devtools-style panel: watch variables live, run JavaScript, jump to any passage (fast-forward), rewind, and inspect the timeline. Debug autosaves keep your place across `tweego -w` rebuilds — the live-preview tab reloads and you're still in the scene you're editing, even when the rebuild renumbers every passage. See [Debug mode](#debug-mode).
 - **Multi-bubble sends.** `||` in a `(send: …)` label breaks the sent text into separate bubbles fired in quick succession — one tap, a flurry of texts. See [Reply pills and sent text](#reply-pills-and-sent-text).
-- **`s.lastChoice`.** Every tapped pill records its label, so several pills can lead to the same passage and the story can still branch on which one the player picked. See [Reply pills and sent text](#reply-pills-and-sent-text).
 
 ### Version 2.2
 
