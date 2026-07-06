@@ -8,47 +8,43 @@ Subtext is a story format for [Twine 2](https://twinery.org/) that turns a branc
 
 Subtext is a successor to [Trialogue](https://github.com/phivk/trialogue) by Philo van Kemenade. The name is what chat fiction runs on: the message left on *Delivered*, the *Read* with no reply, the typing that starts and stops — everything underneath what's actually said. The lineage runs Subtext → Trialogue → [Paloma](http://mcdemarco.net/tools/scree/paloma/) → [Snowman](https://github.com/videlais/snowman).
 
-## What's new in 2.2
+## Table of contents
 
-- **Asides — narration in the margins.** A fourth narration style: tag a speakerless passage `aside-left` or `aside-right` and it appears as a note *outside* the phone, level with the latest message, riding along as the chat scrolls and fading after a few beats. On phones it floats over the chat's edge like a sticky note on the glass. See [Asides](#asides).
-- **Reply pills can send different text than they show.** `[[sure (send: sure, that works — see you at midnight)->meet]]` shows a terse pill but sends the full line; an empty `(send:)` advances the story without posting a message at all (perfect for a "start" button).
+**Getting started** — [Add Subtext to Twine](#add-subtext-to-twine) · [Your first passage](#your-first-passage) · [Using Tweego](#using-tweego) · [Building from source](#building-from-source)
 
-## What's new in 2.1
+**Reference** — [Special passages](#special-passages) · [Passage tags](#passage-tags) · [Configuration](#configuration) · [Utility functions](#utility-functions) · [Events](#events)
 
-- **Multiple conversations.** An opt-in contacts inbox lets one story weave several chats at once — unread badges, per-conversation threads, live "typing…" states, and messages that arrive in the background while the player is talking to someone else. Perfect for mystery and epistolary structures. Single-conversation stories are completely unaffected: no `StoryThreads` passage, no inbox, no overhead. See [Multiple conversations](#multiple-conversations).
-- **A tidier header.** Controls are now split by register: in-story navigation (the inbox chevron, back link) sits on the left, app controls (undo, menu) on the right. The light/dark toggle and Restart moved into the menu.
+**Messages** — [Photo messages](#photo-messages) · [Voice memos](#voice-memos) · [Location sharing](#location-sharing) · [Timestamps](#timestamps) · [Read receipts](#read-receipts) · [Reactions](#reactions)
 
-## What's new in 2.0
+**Narration** — [Narration modes](#narration) · [Asides](#asides)
 
-**A modern messaging look**
+**Player input** — [Reply pills and sent text](#reply-pills-and-sent-text) · [Timed responses](#timed-responses) · [Free text input](#free-text-input)
 
-- Message bubbles are grouped by speaker with iMessage-style corner shaping, a speaker name above each group, and an auto-colored avatar beside it.
-- Each paragraph of a passage becomes its own bubble, so longer passages read like a real text exchange.
-- Outgoing (player) messages render as accent-colored bubbles on the right; choices appear as quick-reply pill buttons.
-- Passages containing only an image render frameless, like a photo message.
-- Players can send photos from a picker; stories can branch on which image was sent.
-- Voice-memo bubbles with a real player (waveform, play/pause, duration) via `[voice file.mp3]`.
-- Location map cards via `[location lat,lon Label]`, and players can share their *real* coordinates for the story to react to.
-- Read receipts (Delivered/Read) under the player's last message, with author control for dramatic effect, including a permanent, red "Not Delivered" failed state.
-- Message reactions: speakers can tapback the player's messages, and players can react as a choice.
-- Optional timed responses (a subtle meter runs as time runs out—hesitate and the story moves without you) and free-text input for password/puzzle beats, with the typed answer available to template logic.
-- Thread clearing for flashbacks and scene changes (`clear` tag + timestamp chips).
-- Optional multi-conversation mode: a contacts inbox with unread badges and background message delivery, for weaving several chats at once (single-conversation stories are unaffected).
-- Timestamp chips, speaker profiles (display names, avatar images, bubble colors), optional message sounds, and a tab-title unread badge.
-- Refined typing indicator, message entrance animations (disabled for players who prefer reduced motion), and automatic dark mode with a player-facing theme toggle.
-- The story renders as a phone: full-bleed on mobile, a centered phone-width frame on larger screens.
+**Speakers and appearance** — [Speaker profiles](#speaker-profiles) · [Theming](#theming)
 
-**A more robust format**
+**Story structure** — [Clearing the thread](#clearing-the-thread) · [Multiple conversations](#multiple-conversations) · [Saving](#saving)
 
-- The runtime was rewritten in dependency-free vanilla JavaScript. jQuery, Underscore, and the Bootstrap/jQuery CDN links are not necessary. Published stories are fully self-contained and work offline.
-- Save/restore now replays the entire conversation, not just the last passage, and an optional autosave keeps progress across reloads.
-- Undo restores story state correctly (state snapshots are deep-copied per choice).
-- Broken links, render errors, and script errors surface as readable messages in the chat instead of failing silently.
-- The Grunt/Browserify toolchain was replaced with a single esbuild-based build script, plus a built-in Twee compiler and headless-browser smoke test.
+**Interface** — [Notifications](#notifications) · [Page chrome and menus](#page-chrome-and-menus)
 
-## Writing a chat story
+**More** — [Accessibility](#accessibility) · [Migrating from Trialogue](#migrating-from-trialogue) · [Changelog](#changelog) · [Credits](#credits)
 
-Every passage is a message. Tag a passage `speaker-<name>` to say who sends it:
+## Getting started
+
+Subtext's one big idea: **every passage is a message.** Tag a passage with who's speaking, write what they say, and offer the player some replies — the format handles the bubbles, the typing indicator, the timing, and the read receipts.
+
+### Add Subtext to Twine
+
+In Twine 2: **Twine → Story Formats → Add a New Format** and paste:
+
+```
+https://samplereality.github.io/subtext/format.js
+```
+
+(That URL is the copy of `dist/Twine2/Subtext/format.js` published by this repository's GitHub Pages site, redeployed automatically on every push to `main`.) Then set it as your story's format under **Story → Details**.
+
+### Your first passage
+
+Tag a passage `speaker-<name>` to say who sends it:
 
 ```
 :: Start [speaker-detective]
@@ -61,67 +57,106 @@ Meet me at the docks in an hour?
 ```
 
 - Each paragraph (blank-line separated) becomes its own bubble.
-- `[[links]]` become the player's quick-reply choices. The usual Twine link forms work: `[[display|target]]`, `[[display->target]]`, `[[target<-display]]`.
-- **Sending different text than the pill shows.** By default the pill's label is also what gets sent as the player's message. Add a `(send: …)` suffix to the label to send something different — great for a terse pill that reads fuller in the thread, or a "start" button that shouldn't literally say "start":
-
-  ```
-  [[sure (send: sure, that works — see you at midnight)->meet]]
-  [[start (send:)->intro]]      // pill says "start", sends nothing
-  ```
-
-  An empty `(send:)` sends no bubble at all — the story just advances. (From code, `story.choose(target, text)` does the same; pass an empty string to advance silently.)
-- A passage **without** a `speaker-` tag belongs to the narrator — see [Narration](#narration) for the three ways it can be presented.
+- `[[links]]` become the player's quick-reply choices. The usual Twine link forms work: `[[display|target]]`, `[[display->target]]`, `[[target<-display]]`. A pill can also send different text than it shows — see [Reply pills and sent text](#reply-pills-and-sent-text).
+- A passage **without** a `speaker-` tag belongs to the narrator — see [Narration](#narration) for the ways it can be presented.
 - Speaker names get an avatar automatically (initial + a stable color derived from the name). Multi-word names use dashes: `speaker-happy-bot` displays as "happy bot".
 - Markdown, inline HTML, and Snowman-style `<%= s.variable %>` templates are all supported. Story state lives in `s` (an alias for `window.story.state`).
 
-### Special passages
+That's a complete, playable story. Everything below adds to it.
+
+### Using Tweego
+
+Prefer writing Twee in a text editor? Subtext works with [Tweego](https://www.motoslave.net/tweego/), the command-line Twine compiler.
+
+**1. Install the format where Tweego can find it.** Tweego looks for story formats in a `storyformats` directory — next to your project, next to the `tweego` binary, or anywhere listed in the `TWEEGO_PATH` environment variable. Each format lives in its own subdirectory containing a `format.js`:
+
+```bash
+mkdir -p storyformats/subtext
+curl -o storyformats/subtext/format.js https://samplereality.github.io/subtext/format.js
+```
+
+(Or copy `dist/Twine2/Subtext/` from a clone of this repository into `storyformats/`.) Confirm it's visible — and note its ID — with:
+
+```bash
+tweego --list-formats
+```
+
+**2. Declare the format in your StoryData passage** so both Tweego and Twine select it automatically:
+
+```
+:: StoryData
+{
+  "ifid": "YOUR-STORY-IFID",
+  "format": "Subtext",
+  "format-version": "2.2.0"
+}
+```
+
+(Every story needs its own unique IFID — Tweego generates one for you if the field is missing, and prints it so you can paste it in.)
+
+**3. Compile:**
+
+```bash
+tweego -o story.html story.twee
+```
+
+If you skip the StoryData declaration, pass the format explicitly with `-f subtext` (the ID from `--list-formats`). Other handy invocations:
+
+```bash
+tweego -w -o story.html story.twee    # watch mode: recompile on every save
+tweego -d -o story.twee story.html    # decompile a published story back to Twee
+```
+
+This repository's demo story, [`docs/subtext-demo.twee`](docs/subtext-demo.twee), is a ready-made example of a Tweego-compatible Subtext project.
+
+### Building from source
+
+```
+npm install
+npm run build   # build dist/Twine2/Subtext/format.js
+npm run demo    # build + compile docs/subtext-demo.twee to docs/subtext-demo.html
+npm test        # build + demo + headless-browser smoke test
+```
+
+The demo compiler (`scripts/build-demo.js`) is a minimal Twee-to-HTML stand-in for Tweego, so you can iterate on the format without external tools. Tweego works too — see [Using Tweego](#using-tweego), pointing `storyformats/subtext/` at the freshly built `dist/Twine2/Subtext/`.
+
+## Special passages
+
+A handful of passage *names* have special meaning (the Twine convention). Most are optional.
 
 | Passage | Purpose |
 | --- | --- |
+| `StoryTitle` | The story's name (Twine standard) |
+| `StoryData` | IFID and format metadata (Twine standard) |
 | `StorySubtitle` | Subtitle shown under the story title in the header |
 | `StoryAuthor` | Author credit shown next to the subtitle |
 | `StoryColophon` | Appended as a meta message when a passage tagged `End` is shown |
+| `StorySpeakers` | Speaker display names, avatars, and colors — see [Speaker profiles](#speaker-profiles) |
+| `StoryImages` | The photo gallery — see [Photo messages](#photo-messages) |
+| `StoryThreads` | Conversation list; its presence enables [Multiple conversations](#multiple-conversations) |
 | tag `script` | Story JavaScript (Twine's Edit Story JavaScript also works) |
 | tag `stylesheet` | Story CSS (Twine's Edit Story Stylesheet also works) |
 
-### Configuration
+## Passage tags
 
-Adjust behavior from your story's JavaScript:
+And a handful of passage *tags* change how a passage behaves. Tags combine freely (`[speaker-sam thread-mom clear]`).
 
-```js
-story.config.typing = true;        // show the typing indicator
-story.config.msPerChar = 20;       // simulated typing speed
-story.config.minTypingDelay = 500; // ms
-story.config.maxTypingDelay = 4000;// ms
-story.config.metaDelay = 800;      // delay before meta passages
-story.config.splitBubbles = true;  // one bubble per paragraph
-story.config.autosave = false;     // persist progress to localStorage
-story.config.readReceipts = true;  // Delivered/Read under the last message
-story.config.autoRead = true;      // replies mark the last message read
-story.config.sounds = false;       // subtle send/receive sounds (opt-in)
-story.config.titleNotifications = true; // "(2) Story" tab title when hidden
-```
+| Tag | Effect | Section |
+| --- | --- | --- |
+| `speaker-<id>` | Marks who sends the message | [Your first passage](#your-first-passage) |
+| `thread-<id>` | Routes the passage to a conversation | [Multiple conversations](#multiple-conversations) |
+| `meta-chat` / `meta-overlay` / `meta-notification` | Overrides the narration mode for one passage | [Narration](#narration) |
+| `aside-left` / `aside-right` | Renders narration as a margin note | [Asides](#asides) |
+| `aside-beats-<n>` / `aside-hold` / `aside-up-<n>` / `aside-down-<n>` | Tune an aside's lifetime and placement | [Asides](#asides) |
+| `clear` | Wipes the visible thread before rendering | [Clearing the thread](#clearing-the-thread) |
+| `timestamp` | Renders the passage's text as timestamp chips | [Timestamps](#timestamps) |
+| `read` / `unread` | Forces or suppresses the read receipt | [Read receipts](#read-receipts) |
+| `failed` | Marks the player's last message *Not Delivered* | [Read receipts](#read-receipts) |
+| `End` | Appends `StoryColophon` when shown | [Special passages](#special-passages) |
 
-### Utility functions
+## Messages
 
-Several Snowman utility functions are built in (reimplemented without jQuery/Underscore), so snippets from Snowman documentation work in Subtext:
-
-```js
-either('hey!', 'yo!', ['hiya!', 'hello hello'])  // random pick; arrays are flattened
-hasVisited('some passage')                       // true once shown (array/multiple args = all of them)
-visited('some passage')                          // number of times shown
-renderToSelector('#somewhere', 'passage name')   // render a passage into any element
-getStyles('extra.css')                           // load stylesheet(s); returns a Promise
-```
-
-`either()` is especially handy for introducing variety into responses:
-
-```
-:: ok [speaker-sam]
-<%= either('how are you doing?', 'how are things?', "how's life?") %>
-```
-
-And `hasVisited()`/`visited()` pair naturally with thread clearing — history persists across a `clear`, so characters can reference scenes the player saw in a flashback.
+A message can carry more than text. Each of these is written as a `[directive …]` line or a special link, and each is its own bubble.
 
 ### Photo messages
 
@@ -160,7 +195,7 @@ what's the weather like where you are? send me a photo!
 you've sent <%= s.sentPhotos.length %> photo(s)
 ```
 
-`s.lastPhoto` is the most recently sent image name; `s.sentPhotos` is an array of every image sent. Both participate in undo and save/restore like any other state, and a `photosent` event (`window.addEventListener('photosent', e => …)`, with `e.detail.name` and `e.detail.target`) fires on every send. Related config: `story.config.photoButtonLabel`, `story.config.photoPickerTitle`, and `story.config.preloadImages` (warms the browser cache for gallery images at startup, on by default).
+`s.lastPhoto` is the most recently sent image name; `s.sentPhotos` is an array of every image sent. Both participate in undo and save/restore like any other state, and a `photosent` event fires on every send (see [Events](#events)). Related config: `story.config.photoButtonLabel`, `story.config.photoPickerTitle`, and `story.config.preloadImages` (warms the browser cache for gallery images at startup, on by default).
 
 ### Voice memos
 
@@ -190,7 +225,7 @@ meet me here at midnight
 [[i'll be there]]
 ```
 
-The player can share their **real** location. A `location` link renders a pin button with the other choices; tapping it asks the browser for the player's coordinates (with the standard permission prompt):
+The player can share their **real** location. A `location:` link renders a pin button with the other choices; tapping it asks the browser for the player's coordinates (with the standard permission prompt):
 
 ```
 :: where [speaker-sam]
@@ -203,9 +238,58 @@ where are you right now?
 <% if (s.playerLocation) { %>huh, <%= s.playerLocation.lat.toFixed(3) %>, <%= s.playerLocation.lon.toFixed(3) %>… that explains a lot<% } else { %>fine, keep your secrets<% } %>
 ```
 
-If the player consents, their position is sent as an outgoing map card and stored in `s.playerLocation` (`{ lat, lon, accuracy }`); if they decline — or geolocation is unavailable — `s.playerLocation` is `null` and the story continues to the same target, so always write both branches. A `locationshared` event fires on success. This opens the door to site-specific storytelling: distance-gated scenes, stories that only unlock in a particular place, or characters who react to where the reader actually is. (Browsers require HTTPS for geolocation; label defaults live in `story.config.locationButtonLabel` / `locationBubbleLabel`.)
+If the player consents, their position is sent as an outgoing map card and stored in `s.playerLocation` (`{ lat, lon, accuracy }`); if they decline — or geolocation is unavailable — `s.playerLocation` is `null` and the story continues to the same target, so always write both branches. A `locationshared` event fires on success (see [Events](#events)). This opens the door to site-specific storytelling: distance-gated scenes, stories that only unlock in a particular place, or characters who react to where the reader actually is. (Browsers require HTTPS for geolocation; label defaults live in `story.config.locationButtonLabel` / `locationBubbleLabel`.)
 
-### Narration
+### Timestamps
+
+Add centered timestamp chips, like a conversation that unfolds over time:
+
+```
+:: morning [speaker-detective]
+[timestamp Tuesday 9:41 AM]
+any progress on the case?
+
+[[some->progress]]
+```
+
+A `[timestamp …]` line at the start of any passage renders as a chip above the message (it also resets message grouping, as a time gap should). Alternatively, tag a whole passage `timestamp` to render its text as chips. Timestamps are purely presentational — write whatever fits your story's clock. When a chip leads a speaker's reply, it appears the moment the reply starts "typing," the way it would on a real phone.
+
+### Read receipts
+
+Player messages show a **Delivered** status that flips to **Read** when a speaker replies (only the most recent message displays its receipt, iMessage-style). The receipt participates in undo and save/restore.
+
+Silence can be louder than a reply — so you control the receipt:
+
+- Tag a passage `unread` and showing it will *not* mark the player's message as read (a meta passage narrating "hours pass…" while the message sits on Delivered).
+- Tag a passage `read` to force the flip — even from a meta passage. Read with no reply coming is peak dramatic tension.
+- From JavaScript or inside a passage template: `<% story.markRead() %>`, `<% story.markUnread() %>`, or with a custom label, `<% story.markRead('Read 11:58 PM') %>`.
+- Set `story.config.autoRead = false` to take full manual control, or `story.config.readReceipts = false` to turn receipts off entirely. Labels are configurable via `story.config.receiptLabels`.
+
+**Failed to send.** Tag a passage `failed` (or call `story.markFailed()`) and the player's last message shows **Not Delivered** in red. Unlike other receipts, it stays visible on that message forever — a bounced message sits in the scrollback like a small wound — and automatic read receipts will never quietly override it. Good for dead numbers, no signal, blocked contacts, and messages sent to people who no longer exist.
+
+### Reactions
+
+Tapback badges, in both directions:
+
+- **A speaker reacts to the player.** Put `[react ❤️]` on its own line in a passage and the emoji pops onto the corner of the player's last message when that passage shows. (From code: `story.react('❤️')`, or `story.react('😂', 'in')` to react to the speaker's own last message.)
+- **The player reacts as a choice.** A `[[react:👍->Target]]` link renders as an emoji chip with the other responses. Choosing it sends *no bubble* — the tapback lands on the speaker's message, `s.lastReaction` records the emoji for branching, a `reaction` event fires, and the story continues to the target:
+
+```
+:: sam-reacts [speaker-sam]
+[react ❤️]
+
+right back at you
+
+[[react:👍->reply]]
+[[see you around->reply]]
+
+:: reply [speaker-sam]
+<% if (s.lastReaction === '👍') { %>a 👍 from you is all I need<% } else { %>see you around 👋<% } %>
+```
+
+One reaction per message; a newer one replaces it. Reactions participate in undo and save/restore.
+
+## Narration
 
 Speakerless passages are the narrator's voice, and you choose where that voice lives relative to the fiction of the text exchange:
 
@@ -251,57 +335,20 @@ One aside per side can be live at a time; a new one replaces the old. In multi-c
 
 For screen readers the aside layer is a polite live region and each note is announced as it appears, so visually-marginal narration is never lost.
 
-### Speaker profiles
+## Player input
 
-Give speakers display names, avatar images, and bubble colors in one place with a `StorySpeakers` passage — one speaker per line, using the speaker id from the tag (the part after `speaker-`):
+Beyond tapping a reply pill, the player can be given the clock, a keyboard, or a pill that says one thing and sends another.
 
-```
-:: StorySpeakers
-detective: Detective Marlowe; avatar: images/marlowe.png; color: #8e44ad
-happy-bot: Chip; color: #148f77
-you: color: #34c759
-```
+### Reply pills and sent text
 
-- The first segment (or `name:`) sets the display name shown above the speaker's messages and used for the avatar initial.
-- `avatar:` sets an avatar image (any URL or data URI); without one, the speaker gets an initial on a stable auto-generated color.
-- `color:` tints that speaker's bubbles (and avatar); text automatically switches between dark and light for contrast. A `you` entry recolors the player's outgoing bubbles.
-
-Profiles are also scriptable: `story.speakers['detective'] = { name: 'Marlowe', … }` in your story JavaScript. Anything not covered by a profile can still be styled with CSS via `data-speaker` attributes.
-
-### Read receipts
-
-Player messages show a **Delivered** status that flips to **Read** when a speaker replies (only the most recent message displays its receipt, iMessage-style). The receipt participates in undo and save/restore.
-
-Silence can be louder than a reply — so you control the receipt:
-
-- Tag a passage `unread` and showing it will *not* mark the player's message as read (a meta passage narrating "hours pass…" while the message sits on Delivered).
-- Tag a passage `read` to force the flip — even from a meta passage. Read with no reply coming is peak dramatic tension.
-- From JavaScript or inside a passage template: `<% story.markRead() %>`, `<% story.markUnread() %>`, or with a custom label, `<% story.markRead('Read 11:58 PM') %>`.
-- Set `story.config.autoRead = false` to take full manual control, or `story.config.readReceipts = false` to turn receipts off entirely. Labels are configurable via `story.config.receiptLabels`.
-
-**Failed to send.** Tag a passage `failed` (or call `story.markFailed()`) and the player's last message shows **Not Delivered** in red. Unlike other receipts, it stays visible on that message forever — a bounced message sits in the scrollback like a small wound — and automatic read receipts will never quietly override it. Good for dead numbers, no signal, blocked contacts, and messages sent to people who no longer exist.
-
-### Reactions
-
-Tapback badges, in both directions:
-
-- **A speaker reacts to the player.** Put `[react ❤️]` on its own line in a passage and the emoji pops onto the corner of the player's last message when that passage shows. (From code: `story.react('❤️')`, or `story.react('😂', 'in')` to react to the speaker's own last message.)
-- **The player reacts as a choice.** A `[[react:👍->Target]]` link renders as an emoji chip with the other responses. Choosing it sends *no bubble* — the tapback lands on the speaker's message, `s.lastReaction` records the emoji for branching, a `reaction` event fires, and the story continues to the target:
+By default a pill's label is also what gets sent as the player's message. Add a `(send: …)` suffix to the label to send something different — great for a terse pill that reads fuller in the thread, or a "start" button that shouldn't literally say "start":
 
 ```
-:: sam-reacts [speaker-sam]
-[react ❤️]
-
-right back at you
-
-[[react:👍->reply]]
-[[see you around->reply]]
-
-:: reply [speaker-sam]
-<% if (s.lastReaction === '👍') { %>a 👍 from you is all I need<% } else { %>see you around 👋<% } %>
+[[sure (send: sure, that works — see you at midnight)->meet]]
+[[start (send:)->intro]]      // pill says "start", sends nothing
 ```
 
-One reaction per message; a newer one replaces it. Reactions participate in undo and save/restore.
+An empty `(send:)` sends no bubble at all — the story just advances. (From code, `story.choose(target, text)` does the same; pass an empty string to advance silently.)
 
 ### Timed responses
 
@@ -342,6 +389,55 @@ what's the password? hint: it's where my servers live
 ```
 
 The text after `input:` is the field's placeholder. Whatever the player types is sent as their message and stored in `s.lastInput` (with every entry kept in `s.inputs`), so the target passage does the checking with ordinary template logic — exact match, `.includes()`, regular expressions, whatever the puzzle calls for. Conditional links (as above) let wrong guesses loop back for another try. A `textinput` event fires on every send. One composer per passage; it can sit alongside regular choice chips ("type the answer, or [[give up]]").
+
+## Speakers and appearance
+
+### Speaker profiles
+
+Give speakers display names, avatar images, and bubble colors in one place with a `StorySpeakers` passage — one speaker per line, using the speaker id from the tag (the part after `speaker-`):
+
+```
+:: StorySpeakers
+detective: Detective Marlowe; avatar: images/marlowe.png; color: #8e44ad
+happy-bot: Chip; color: #148f77
+you: color: #34c759
+```
+
+- The first segment (or `name:`) sets the display name shown above the speaker's messages and used for the avatar initial.
+- `avatar:` sets an avatar image (any URL or data URI); without one, the speaker gets an initial on a stable auto-generated color.
+- `color:` tints that speaker's bubbles (and avatar); text automatically switches between dark and light for contrast. A `you` entry recolors the player's outgoing bubbles.
+
+Profiles are also scriptable: `story.speakers['detective'] = { name: 'Marlowe', … }` in your story JavaScript. Anything not covered by a profile can still be styled with CSS via `data-speaker` attributes.
+
+### Theming
+
+Override CSS variables from your story stylesheet:
+
+```css
+:root {
+  --t-accent: #34c759;            /* player bubbles & buttons */
+  --t-bg: #ffffff;                /* chat background */
+  --t-bubble-in: #e9e9eb;         /* incoming bubble background */
+  --t-bubble-in-text: #111114;    /* incoming bubble text */
+  --t-chat-width: 44rem;          /* max chat column width */
+}
+```
+
+Dark mode follows the player's system preference until they pick a side with the header's sun/moon toggle — their choice is remembered per story (hide the toggle with `story.config.themeToggle = false`). Authors can force a scheme with `<html data-theme="dark">` (or `light`). The Trialogue 1.x variable names (`--bg-color`, `--user-color`, `--passage-bg-color`, `--passage-text-color`, `--navbar-bg-color`, `--speaker-color`) are still honored, and `--t-page-bg` themes the page behind the phone frame.
+
+Style an individual speaker by targeting its `data-speaker` attribute:
+
+```css
+.chat-avatar[data-speaker="detective"] {
+  background-image: url('detective.png');
+  color: transparent;
+}
+.chat-passage[data-speaker="detective"] {
+  background: #ffe8cc;
+}
+```
+
+## Story structure
 
 ### Clearing the thread
 
@@ -409,58 +505,23 @@ Three things move the story between threads:
 
 The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them.
 
-State for branching: `s`-level nothing is required, but the runtime tracks it all — `story.unread` (per-thread counts), `story.threads`, and the active thread are saved and restored, and undo rewinds thread-by-thread. Config: `story.config.threadNotifications = false` silences the cross-thread banners (the inbox badges still update).
+State for branching: nothing is required, but the runtime tracks it all — `story.unread` (per-thread counts), `story.threads`, and the active thread are saved and restored, and undo rewinds thread-by-thread. Config: `story.config.threadNotifications = false` silences the cross-thread banners (the inbox badges still update).
 
 A complete example is [`docs/subtext-inbox-demo.twee`](docs/subtext-inbox-demo.twee) — a three-thread thriller — playable at [the inbox demo](https://samplereality.github.io/subtext/inbox-demo.html).
 
-### Timestamps
+### Saving
 
-Add centered timestamp chips, like a conversation that unfolds over time:
+- `story.save()` writes progress into the URL hash — players can bookmark or share it, and loading that URL replays the whole conversation.
+- `story.config.autosave = true` additionally saves after every message and resumes automatically on the next visit. Restart clears the autosave.
 
-```
-:: morning [speaker-detective]
-[timestamp Tuesday 9:41 AM]
-any progress on the case?
-
-[[some->progress]]
-```
-
-A `[timestamp …]` line at the start of any passage renders as a chip above the message (it also resets message grouping, as a time gap should). Alternatively, tag a whole passage `timestamp` to render its text as chips. Timestamps are purely presentational — write whatever fits your story's clock.
+## Interface
 
 ### Notifications
 
 - `story.config.sounds = true` enables subtle synthesized send/receive sounds (no audio files needed). Browsers allow sound only after the player's first interaction, so the very first messages are always silent.
 - While the tab is hidden, incoming messages update the title to `(2) Your Story Name` and it resets when the player returns (`story.config.titleNotifications`, on by default).
 
-### Theming
-
-Override CSS variables from your story stylesheet:
-
-```css
-:root {
-  --t-accent: #34c759;            /* player bubbles & buttons */
-  --t-bg: #ffffff;                /* chat background */
-  --t-bubble-in: #e9e9eb;         /* incoming bubble background */
-  --t-bubble-in-text: #111114;    /* incoming bubble text */
-  --t-chat-width: 44rem;          /* max chat column width */
-}
-```
-
-Dark mode follows the player's system preference until they pick a side with the header's sun/moon toggle — their choice is remembered per story (hide the toggle with `story.config.themeToggle = false`). Authors can force a scheme with `<html data-theme="dark">` (or `light`). The Trialogue 1.x variable names (`--bg-color`, `--user-color`, `--passage-bg-color`, `--passage-text-color`, `--navbar-bg-color`, `--speaker-color`) are still honored, and `--t-page-bg` themes the page behind the phone frame.
-
-Style an individual speaker by targeting its `data-speaker` attribute:
-
-```css
-.chat-avatar[data-speaker="detective"] {
-  background-image: url('detective.png');
-  color: transparent;
-}
-.chat-passage[data-speaker="detective"] {
-  background: #ffe8cc;
-}
-```
-
-### Page chrome helpers
+### Page chrome and menus
 
 The story presents as a phone — a single chat column, full-bleed on small screens and a framed phone-width card on larger ones (width via `--t-chat-width`). Supplementary content lives in a Menu modal; fill it from your story JavaScript:
 
@@ -476,10 +537,126 @@ The hint is smarter than a static label: `story.config.inputHint` shows differen
 
 The Menu button (☰) only appears once the menu has content. The Trialogue 1.x helpers `inject_left_sidebar()` / `inject_right_sidebar()`—which used to render desktop side columns—still work as deprecated aliases, each filling an additional section of the menu. The header always includes an Undo button (↩, appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
 
-### Saving
+## Configuration
 
-- `story.save()` writes progress into the URL hash — players can bookmark or share it, and loading that URL replays the whole conversation.
-- `story.config.autosave = true` additionally saves after every message and resumes automatically on the next visit. Restart clears the autosave.
+Adjust behavior from your story's JavaScript, any time before or during play:
+
+```js
+story.config.msPerChar = 30;
+story.config.metaStyle = 'overlay';
+story.config.autosave = true;
+```
+
+**Timing and bubbles**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `typing` | `true` | Show the typing indicator before a speaker's messages |
+| `msPerChar` | `20` | Simulated typing speed, milliseconds per character |
+| `minTypingDelay` | `500` | Floor for the typing delay (ms) |
+| `maxTypingDelay` | `4000` | Ceiling for the typing delay (ms) |
+| `metaDelay` | `800` | Delay before a narration passage appears (ms) |
+| `splitBubbles` | `true` | Render each paragraph as its own bubble |
+| `bubbleStagger` | `140` | Gap between bubbles of one passage (ms) |
+
+**Receipts and reactions**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `readReceipts` | `true` | Show Delivered/Read under the player's last message |
+| `autoRead` | `true` | A speaker's reply marks the last message read |
+| `receiptLabels` | `{ delivered, read, failed }` | Receipt wording — localize or restyle |
+
+**Narration**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `metaStyle` | `'chat'` | Narration mode: `chat`, `overlay`, `notification`, or `aside` |
+| `metaNotificationLabel` | `''` | App-name label on notification narration (defaults to the story name) |
+| `asideBeats` | `3` | How many messages an aside survives by default |
+| `asideMobile` | `'float'` | Aside fallback with no margin: `float` or `chip` |
+
+**Media and location**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `preloadImages` | `true` | Warm the browser cache for `StoryImages` at startup |
+| `photoButtonLabel` | `'Send a photo'` | Accessible label on the camera button |
+| `photoPickerTitle` | `'Send a photo'` | Heading of the photo picker |
+| `locationButtonLabel` | `'Share my location'` | Label on the location-share button |
+| `locationBubbleLabel` | `'My location'` | Label under a shared-location map card |
+
+**Input and hints**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `timers` | `true` | Honor `timeout:` links (set `false` for unlimited time) |
+| `timerLabel` | `'You have %s seconds to reply'` | Screen-reader announcement when a timer starts |
+| `inputSendLabel` | `'Send'` | Accessible label on the free-text send button |
+| `hint` | `''` | Helper text above the choice chips |
+| `inputHint` | `''` | Helper text above the free-text composer |
+| `hintFadeAfter` | `null` | Retire hints after N moves (`null` never; `0` never shows) |
+
+**Sound, notifications, threads, theme, language**
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `sounds` | `false` | Subtle synthesized send/receive sounds (needs a user gesture) |
+| `titleNotifications` | `true` | Show `(2) Story Name` in the tab title while hidden |
+| `threadNotifications` | `true` | Announce cross-thread messages with a banner |
+| `themeToggle` | `true` | Show the light/dark toggle in the header |
+| `lang` | `''` | Interface language, applied to `<html lang>` (empty = `en`) |
+| `typingLabel` | `'%s is typing'` | Screen-reader announcement while a speaker types |
+| `autosave` | `false` | Persist progress to `localStorage` after every message |
+
+## Utility functions
+
+Several Snowman utility functions are built in (reimplemented without jQuery/Underscore), so snippets from Snowman documentation work in Subtext:
+
+```js
+either('hey!', 'yo!', ['hiya!', 'hello hello'])  // random pick; arrays are flattened
+hasVisited('some passage')                       // true once shown (array/multiple args = all of them)
+visited('some passage')                          // number of times shown
+renderToSelector('#somewhere', 'passage name')   // render a passage into any element
+getStyles('extra.css')                           // load stylesheet(s); returns a Promise
+```
+
+`either()` is especially handy for introducing variety into responses:
+
+```
+:: ok [speaker-sam]
+<%= either('how are you doing?', 'how are things?', "how's life?") %>
+```
+
+And `hasVisited()`/`visited()` pair naturally with thread clearing — history persists across a `clear`, so characters can reference scenes the player saw in a flashback.
+
+## Events
+
+Every story event is a plain DOM `CustomEvent` dispatched on `window`; read its payload from `event.detail`.
+
+```js
+window.addEventListener('photosent', function (e) {
+  console.log(e.detail.name, 'sent to', e.detail.target);
+});
+```
+
+| Event | Fires when… | `detail` |
+| --- | --- | --- |
+| `startstory` | the story is about to show its first passage | `{ story }` |
+| `showpassage` | a passage is about to render | `{ passage }` |
+| `showpassage:after` | a passage has rendered and is on screen | `{ passage }` |
+| `hidepassage` | the current passage is leaving | `{ passage }` |
+| `photosent` | the player sends a photo | `{ name, target, story }` |
+| `locationshared` | the player shares real coordinates | `{ lat, lon, story }` |
+| `reaction` | the player reacts with a tapback | `{ emoji, story }` |
+| `timeout` | a response timer expires | `{ target, text, story }` |
+| `textinput` | the player sends free-text input | `{ text, target, story }` |
+| `save` | progress is written to a save | `{ story }` |
+| `restore` | a save begins replaying | `{ story }` |
+| `restore:after` | a save finishes replaying | `{ story }` |
+| `restorefailed` | a save can't be parsed | `{ error }` |
+
+The Snowman 2 names (`sm.story.started`, `sm.passage.showing`, `sm.passage.shown`, `sm.passage.hidden`, `sm.story.saved`, `sm.restore.success`, `sm.restore.failed`, `sm.story.error`) are dispatched as aliases, so snippets written against Snowman 2 documentation work too.
 
 ## Accessibility
 
@@ -492,80 +669,55 @@ Subtext is built to WCAG 2.1 AA and tested with axe-core on every run of the tes
 
 What authors should still do: write alt text in image HTML (`<img src="…" alt="…">`), give gallery images meaningful names (the photo picker uses them as labels), keep meaningful information out of color alone, and remember voice memos have no captions — pair important audio with text.
 
-## Using the format in Twine
-
-In Twine 2: **Twine → Story Formats → Add a New Format** and paste:
-
-```
-https://samplereality.github.io/subtext/format.js
-```
-
-(That URL is the copy of `dist/Twine2/Subtext/format.js` published by this repository's GitHub Pages site, redeployed automatically on every push to `main`.)
-
-## Using the format with Tweego
-
-Prefer writing Twee in a text editor? Subtext works with [Tweego](https://www.motoslave.net/tweego/), the command-line Twine compiler.
-
-**1. Install the format where Tweego can find it.** Tweego looks for story formats in a `storyformats` directory — next to your project, next to the `tweego` binary, or anywhere listed in the `TWEEGO_PATH` environment variable. Each format lives in its own subdirectory containing a `format.js`:
-
-```bash
-mkdir -p storyformats/subtext
-curl -o storyformats/subtext/format.js https://samplereality.github.io/subtext/format.js
-```
-
-(Or copy `dist/Twine2/Subtext/` from a clone of this repository into `storyformats/`.) Confirm it's visible — and note its ID — with:
-
-```bash
-tweego --list-formats
-```
-
-**2. Declare the format in your StoryData passage** so both Tweego and Twine select it automatically:
-
-```
-:: StoryData
-{
-  "ifid": "YOUR-STORY-IFID",
-  "format": "Subtext",
-  "format-version": "2.2.0"
-}
-```
-
-(Every story needs its own unique IFID — Tweego generates one for you if the field is missing, and prints it so you can paste it in.)
-
-**3. Compile:**
-
-```bash
-tweego -o story.html story.twee
-```
-
-If you skip the StoryData declaration, pass the format explicitly with `-f subtext` (the ID from `--list-formats`). Other handy invocations:
-
-```bash
-tweego -w -o story.html story.twee    # watch mode: recompile on every save
-tweego -d -o story.twee story.html    # decompile a published story back to Twee
-```
-
-This repository's demo story, [`docs/subtext-demo.twee`](docs/subtext-demo.twee), is a ready-made example of a Tweego-compatible Subtext project.
-
-## Development
-
-```
-npm install
-npm run build   # build dist/Twine2/Subtext/format.js
-npm run demo    # build + compile docs/subtext-demo.twee to docs/subtext-demo.html
-npm test        # build + demo + headless-browser smoke test
-```
-
-The demo compiler (`scripts/build-demo.js`) is a minimal Twee-to-HTML stand-in for Tweego, so you can iterate on the format without external tools. Tweego works too — see [Using the format with Tweego](#using-the-format-with-tweego), pointing `storyformats/subtext/` at the freshly built `dist/Twine2/Subtext/`.
-
 ## Migrating from Trialogue
 
 Stories authored for Trialogue work unchanged in most cases — speaker tags, links, special passages, templates, `inject_*` helpers, and the old CSS variable names are all still supported. Differences to be aware of:
 
 - jQuery and Underscore are no longer bundled. Story JavaScript that used `$(…)` or `_.…` directly needs to be rewritten in plain JavaScript. (The `$` helper *inside passages* — `<% $(function() { … }) %>` — still works, and the Snowman utility functions `either()`, `hasVisited()`, `visited()`, `renderToSelector()`, and `getStyles()` are built in.)
-- Story events (`startstory`, `showpassage`, `showpassage:after`, …) are now plain DOM `CustomEvent`s on `window`: `window.addEventListener('showpassage', e => …)` with data in `e.detail`. The Snowman 2 event names (`sm.story.started`, `sm.passage.showing`, `sm.passage.shown`, `sm.passage.hidden`, `sm.story.saved`, `sm.restore.success`, `sm.restore.failed`, `sm.story.error`) are dispatched as aliases, so snippets written for Snowman 2 documentation work too.
+- Story events are now plain DOM `CustomEvent`s on `window` — see [Events](#events). The Snowman 2 event-name aliases are dispatched too.
 - Passages are one bubble per paragraph by default; set `story.config.splitBubbles = false` for the old one-bubble-per-passage behavior.
 - Twine 1 documents are no longer supported.
+
+## Changelog
+
+### Version 2.2
+
+- **Asides — narration in the margins.** A fourth narration style: tag a speakerless passage `aside-left` or `aside-right` and it appears as a note *outside* the phone, level with the latest message, riding along as the chat scrolls and fading after a few beats. On phones it floats over the chat's edge like a sticky note on the glass. See [Asides](#asides).
+- **Reply pills can send different text than they show.** `[[sure (send: sure, that works — see you at midnight)->meet]]` shows a terse pill but sends the full line; an empty `(send:)` advances the story without posting a message at all (perfect for a "start" button). See [Reply pills and sent text](#reply-pills-and-sent-text).
+- **Timestamps appear while typing.** A timestamp chip leading a speaker's reply now shows as soon as the typing indicator starts, the way it would on a real phone.
+
+### Version 2.1
+
+- **Multiple conversations.** An opt-in contacts inbox lets one story weave several chats at once — unread badges, per-conversation threads, live "typing…" states, and messages that arrive in the background while the player is talking to someone else. Perfect for mystery and epistolary structures. Single-conversation stories are completely unaffected: no `StoryThreads` passage, no inbox, no overhead. See [Multiple conversations](#multiple-conversations).
+- **A tidier header.** Controls are now split by register: in-story navigation (the inbox chevron, back link) sits on the left, app controls (undo, menu) on the right. The light/dark toggle and Restart moved into the menu.
+
+### Version 2.0
+
+**A modern messaging look**
+
+- Message bubbles are grouped by speaker with iMessage-style corner shaping, a speaker name above each group, and an auto-colored avatar beside it.
+- Each paragraph of a passage becomes its own bubble, so longer passages read like a real text exchange.
+- Outgoing (player) messages render as accent-colored bubbles on the right; choices appear as quick-reply pill buttons.
+- Passages containing only an image render frameless, like a photo message.
+- Players can send photos from a picker; stories can branch on which image was sent.
+- Voice-memo bubbles with a real player (waveform, play/pause, duration) via `[voice file.mp3]`.
+- Location map cards via `[location lat,lon Label]`, and players can share their *real* coordinates for the story to react to.
+- Read receipts (Delivered/Read) under the player's last message, with author control for dramatic effect, including a permanent, red "Not Delivered" failed state.
+- Message reactions: speakers can tapback the player's messages, and players can react as a choice.
+- Optional timed responses (a subtle meter runs as time runs out—hesitate and the story moves without you) and free-text input for password/puzzle beats, with the typed answer available to template logic.
+- Thread clearing for flashbacks and scene changes (`clear` tag + timestamp chips).
+- Optional multi-conversation mode: a contacts inbox with unread badges and background message delivery, for weaving several chats at once (single-conversation stories are unaffected).
+- Timestamp chips, speaker profiles (display names, avatar images, bubble colors), optional message sounds, and a tab-title unread badge.
+- Refined typing indicator, message entrance animations (disabled for players who prefer reduced motion), and automatic dark mode with a player-facing theme toggle.
+- The story renders as a phone: full-bleed on mobile, a centered phone-width frame on larger screens.
+
+**A more robust format**
+
+- The runtime was rewritten in dependency-free vanilla JavaScript. jQuery, Underscore, and the Bootstrap/jQuery CDN links are not necessary. Published stories are fully self-contained and work offline.
+- Save/restore now replays the entire conversation, not just the last passage, and an optional autosave keeps progress across reloads.
+- Undo restores story state correctly (state snapshots are deep-copied per choice).
+- Broken links, render errors, and script errors surface as readable messages in the chat instead of failing silently.
+- The Grunt/Browserify toolchain was replaced with a single esbuild-based build script, plus a built-in Twee compiler and headless-browser smoke test.
 
 # Credits
 
