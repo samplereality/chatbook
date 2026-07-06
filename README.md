@@ -26,7 +26,7 @@ Subtext is a successor to [Trialogue](https://github.com/phivk/trialogue) by Phi
 
 **Interface** — [Notifications](#notifications) · [Page chrome and menus](#page-chrome-and-menus) · [Debug mode](#debug-mode)
 
-**More** — [Accessibility](#accessibility) · [Migrating from Trialogue](#migrating-from-trialogue) · [Changelog](#changelog) · [Credits](#credits)
+**More** — [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating from Trialogue](#migrating-from-trialogue) · [Changelog](#changelog) · [Credits](#credits)
 
 ## Getting started
 
@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.3.0"
+  "format-version": "2.4.0"
 }
 ```
 
@@ -358,6 +358,19 @@ And `||` inside the sent text breaks it into separate bubbles, fired off in quic
 ```
 [[what happened (send: ok || here's the thing || promise you won't be mad)->confession]]
 ```
+
+**Tracking which pill was tapped.** Every choice records its pill label in `s.lastChoice`, so several pills can share a target and the passage can still tell them apart:
+
+```
+:: Start [speaker-you]
+[[hey (send:)->Intro to Dad]]
+[[happy fathers day (send:)->Intro to Dad]]
+
+:: Intro to Dad [speaker-dad]
+<% if (s.lastChoice === 'happy fathers day') { %>you remembered 🥲<% } else { %>hey kiddo<% } %>
+```
+
+The *label* is what's recorded (not the `(send:)` text), even when nothing is sent at all. Matching is exact, so mind capitalization — or compare with `s.lastChoice.toLowerCase()`. Like all state it participates in undo and save/restore. Timed-out forced replies don't overwrite it; check `s.timedOut` for those. (Photos, locations, reactions, and typed input have their own trackers: `s.lastPhoto`, `s.playerLocation`, `s.lastReaction`, `s.lastInput`.)
 
 ### Timed responses
 
@@ -676,6 +689,7 @@ window.addEventListener('photosent', function (e) {
 | `showpassage` | a passage is about to render | `{ passage }` |
 | `showpassage:after` | a passage has rendered and is on screen | `{ passage }` |
 | `hidepassage` | the current passage is leaving | `{ passage }` |
+| `choice` | the player picks a reply pill (or code calls `story.choose`) | `{ label, sent, target, story }` |
 | `photosent` | the player sends a photo | `{ name, target, story }` |
 | `locationshared` | the player shares real coordinates | `{ lat, lon, story }` |
 | `reaction` | the player reacts with a tapback | `{ emoji, story }` |
@@ -688,9 +702,93 @@ window.addEventListener('photosent', function (e) {
 
 The Snowman 2 names (`sm.story.started`, `sm.passage.showing`, `sm.passage.shown`, `sm.passage.hidden`, `sm.story.saved`, `sm.restore.success`, `sm.restore.failed`, `sm.story.error`) are dispatched as aliases, so snippets written against Snowman 2 documentation work too.
 
-## Accessibility
+## Recipes
 
-Subtext is built to WCAG 2.1 AA and tested with axe-core on every run of the test suite. What players get:
+Common patterns, built from the pieces documented above. Everything here works today — copy, paste, adapt. Three trackers do most of the work, and like all of `s` they take part in undo and save/restore:
+
+| `s` value | Is |
+| --- | --- |
+| `s.lastChoice` | The label of the last reply pill tapped — see [Reply pills and sent text](#reply-pills-and-sent-text) |
+| `s.previousPassage` | The name of the passage shown just before this one |
+| `s.replySeconds` | How long the player deliberated over the last choice, in seconds |
+
+### Branch on how the player arrived
+
+`s.previousPassage` holds the name of the passage shown before this one, so a hub that several routes funnel into can react to *where the player came from* — no per-route bookkeeping:
+
+```
+:: back at the office [speaker-boss clear]
+<% if (s.previousPassage === 'the confrontation') { %>that was quite a scene you made
+<% } else { %>you're late<% } %>
+```
+
+### Notice hesitation
+
+`s.replySeconds` records how long the player sat on the choices before answering — the invisible cousin of the visible [response timer](#timed-responses). No meter, no pressure; the story just *knows*:
+
+```
+:: alibi [speaker-detective]
+<% if (s.replySeconds > 4) { %>…why'd you have to think about that one?<% } else { %>uh huh. go on<% } %>
+```
+
+### Fire sound or analytics on any choice
+
+The [`choice` event](#events) fires on every pill tap (and every `story.choose` call) with `{ label, sent, target }`:
+
+```js
+window.addEventListener('choice', function (e) {
+  gtag('event', 'reply', { label: e.detail.label });
+});
+```
+
+### Affinity and stat meters
+
+Plain arithmetic in a template is all a relationship or suspicion meter needs; branch on it anywhere:
+
+```
+:: help them [speaker-you]
+<% s.trust = (s.trust || 0) + 1 %>okay, I've got your back
+
+:: later [speaker-sam]
+<% if ((s.trust || 0) >= 3) { %>I know I can count on you<% } else { %>I'm still not sure about you<% } %>
+```
+
+### A hub whose choices disappear as you use them
+
+`hasVisited()` reports whether a passage has been shown, so a menu can drop options the player has already exhausted — wrap each pill in a conditional and send the player back to the hub:
+
+```
+:: interrogation [speaker-detective]
+ask me anything.
+
+<% if (!hasVisited('the-knife')) { %>[[the knife->the-knife]]<% } %>
+<% if (!hasVisited('the-alibi')) { %>[[the alibi->the-alibi]]<% } %>
+[[that's all I need->done]]
+```
+
+(The same `<% if (…) { %>[[…]]<% } %>` shape gates any pill — behind a password, a stat, a `recall()`, whatever.)
+
+### Remember across playthroughs
+
+`story.remember(key, value)` / `story.recall(key, fallback)` persist per-story in `localStorage` and survive **restart** — unlike `s`, which resets. This is how a story counts endings the player has found, unlocks New Game+ content, or has a character remember the last run:
+
+```
+:: the good ending [speaker-sam clear]
+<% var seen = story.recall('endings', []); if (seen.indexOf('good') === -1) { story.remember('endings', seen.concat('good')); } %>
+you made it. maybe we both did.
+
+<% if (story.recall('endings', []).length > 1) { %>[timestamp You've found <%= story.recall('endings', []).length %> of 3 endings]<% } %>
+```
+
+```
+:: Start [speaker-unknown]
+<% if (story.recall('endings', []).indexOf('bad') > -1) { %>back again? you didn't learn last time.
+<% } else { %>who is this?<% } %>
+```
+
+`story.forget(key)` drops one value; `story.forget()` wipes the story's whole memory. (Restart clears the ordinary save but deliberately leaves memory intact — call `forget()` yourself if you want a true reset.)
+
+## Accessibility
 
 - **Screen readers:** the conversation is a `role="log"` live region, and messages are never moved or re-inserted in the DOM, so each one is announced exactly once. The typing indicator announces *"Sam is typing"* (localize via `story.config.typingLabel`), narration overlays and notifications are polite status regions, restoring a save replays silently instead of flooding the reader, and reactions, receipts, voice memos, and location cards all carry proper labels.
 - **Keyboard:** every control is a real button or link with a visible focus indicator; after choosing a reply, focus stays anchored on the reply panel; dialogs are native `<dialog>` elements (focus trapping and Escape included).
@@ -709,6 +807,12 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.4
+
+- **The story keeps score.** `s.lastChoice` (which pill was tapped), `s.previousPassage` (how the player arrived), `s.replySeconds` (how long they deliberated), and a `choice` event on every reply — the automatic trackers that let several pills share a target and still branch. See [Reply pills and sent text](#reply-pills-and-sent-text) and [Recipes](#recipes).
+- **Cross-playthrough memory.** `story.remember()` / `story.recall()` / `story.forget()` persist values per story across restarts — endings-seen counters, New Game+ unlocks, characters who remember your last run.
+- **A [Recipes](#recipes) section** collecting common patterns: arrival-based branching, hesitation, affinity meters, disappearing hub choices, and playthrough memory.
 
 ### Version 2.3
 
