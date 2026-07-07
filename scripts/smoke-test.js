@@ -1294,6 +1294,20 @@ async function run() {
 		)
 	);
 
+	// Snowman-lineage globals resolve bare inside templates
+	check(
+		'story and passage globals reach into templates',
+		await page.evaluate(() => {
+			const rendered = window.Passage.render(
+				'<%= story.name %> / <%= passage.name %>'
+			);
+			return (
+				rendered.indexOf('Subtext Demo') > -1 &&
+				rendered.indexOf(window.passage.name) > -1
+			);
+		})
+	);
+
 	console.log('multi-conversation inbox');
 
 	const INBOX_DEMO = path.join(__dirname, '..', 'docs', 'subtext-inbox-demo.html');

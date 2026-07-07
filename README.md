@@ -705,6 +705,17 @@ story.config.autosave = true;
 
 ## Utility functions
 
+### The story and passage globals
+
+Two globals from the Snowman lineage are always available — bare, no `window.` needed — inside `<% %>` templates and story JavaScript:
+
+- **`story`** — the running story: `story.name` (the StoryTitle), `story.ifid`, `story.history`, `story.passages`, `story.state` (aliased as `s`), plus every `story.*` method in these docs. `story.passage('name')` fetches any passage object.
+- **`passage`** — the passage currently showing: `passage.name`, `passage.tags`, `passage.source`, `passage.id`.
+
+So a message can quote its own frame: `<%= story.name %>` drops the story's title into a bubble, and `<% if (passage.tags.indexOf('finale') > -1) { %>…<% } %>` branches on the current passage's own tags.
+
+### Snowman helpers
+
 Several Snowman utility functions are built in (reimplemented without jQuery/Underscore), so snippets from Snowman documentation work in Subtext:
 
 ```js
