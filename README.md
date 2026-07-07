@@ -131,8 +131,8 @@ A handful of passage *names* have special meaning (the Twine convention). Most a
 | --- | --- |
 | `StoryTitle` | The story's name (Twine standard) |
 | `StoryData` | IFID and format metadata (Twine standard) |
-| `StorySubtitle` | Subtitle shown under the story title in the header |
-| `StoryAuthor` | Author credit shown next to the subtitle |
+| `StorySubtitle` | Subtitle shown with the story title (place via [`titlePlacement`](#page-chrome-and-menus)) |
+| `StoryAuthor` | Author credit shown with the subtitle (same placement) |
 | `StoryColophon` | Appended as a meta message when a passage tagged `End` is shown |
 | `StorySpeakers` | Speaker display names, avatars, and colors — see [Speaker profiles](#speaker-profiles) |
 | `StoryImages` | The photo gallery — see [Photo messages](#photo-messages) |
@@ -259,7 +259,7 @@ A `[timestamp …]` line at the start of any passage renders as a chip above the
 
 ### Read receipts
 
-Player messages show a **Delivered** status that flips to **Read** when a speaker replies (only the most recent message displays its receipt, iMessage-style). The receipt participates in undo and save/restore.
+Player messages show a **Delivered** status that flips to **Read** the moment a speaker's reply is *queued* — before the typing indicator starts, the way a real phone orders it: they read your message, then they started typing. (Only the most recent message displays its receipt, iMessage-style.) The receipt participates in undo and save/restore.
 
 Silence can be louder than a reply — so you control the receipt:
 
@@ -549,15 +549,36 @@ The story presents as a phone — a single chat column, full-bleed on small scre
 
 ```js
 inject_menu('<h3>About</h3><p>…</p>');           // content of the Menu modal
+inject_menu('<p>…</p>', 'About');                // …and retitle the dialog while you're at it
 inject_nav_menu('about');                        // custom label for the Menu button (replaces the ☰ icon)
 inject_hint('Choose an option to continue');     // text above the choices (same as story.config.hint)
 inject_modal('Leave?', '<p>Progress will be lost.</p>', '<button data-dismiss="modal">Stay</button>');
 inject_nav_back('← back');                       // shows a back link in the header
 ```
 
-The hint is smarter than a static label: `story.config.inputHint` shows different text while a free-text composer is up (e.g. *"Type your reply to continue"*), and `story.config.hintFadeAfter = 4` retires the helper text entirely once the player has made that many moves — training wheels off. (`null` keeps hints forever; `0` never shows them.)
+The menu dialog's heading defaults to "Menu"; set it with `story.config.menuTitle` or `inject_menu`'s second argument. The hint is smarter than a static label: `story.config.inputHint` shows different text while a free-text composer is up (e.g. *"Type your reply to continue"*), and `story.config.hintFadeAfter = 4` retires the helper text entirely once the player has made that many moves — training wheels off. (`null` keeps hints forever; `0` never shows them.)
 
-The Menu button (☰) only appears once the menu has content. The Trialogue 1.x helpers `inject_left_sidebar()` / `inject_right_sidebar()`—which used to render desktop side columns—still work as deprecated aliases, each filling an additional section of the menu. The header always includes an Undo button (↩, appears once there is something to undo), a light/dark toggle, and a Restart button that asks for confirmation.
+The Menu button (☰) only appears once the menu has content. The header always includes an Undo button (↩, appears once there is something to undo) and the menu holds the light/dark toggle and a Restart button that asks for confirmation.
+
+**Where the story's identity lives.** By default `StoryTitle`, `StorySubtitle`, and `StoryAuthor` render in the chat header. `story.config.titlePlacement` moves them:
+
+```js
+story.config.titlePlacement = 'header';  // default
+story.config.titlePlacement = 'menu';    // tucked at the top of the menu dialog
+story.config.titlePlacement = 'none';    // handled by you
+```
+
+**The header is a stage, not a label.** Repurpose it mid-story with `story.setHeader()` — chapter titles, in-fiction app names, a slow reveal:
+
+```
+:: chapter-two [speaker-sam clear]
+<% story.setHeader('Part Two', 'three weeks later') %>
+[timestamp Three weeks later]
+
+you didn't call
+```
+
+`setHeader(title, subtitle)` overrides either field (pass `null` to leave one alone, `''` to blank it; a custom subtitle replaces the author credit on that line). It's stored in story state, so undo and save/restore keep the header in step with the story. In multi-conversation stories the thread screens still show the contact's name — the custom title appears on the inbox screen instead.
 
 ## Debug mode
 
@@ -648,6 +669,8 @@ story.config.autosave = true;
 | `titleNotifications` | `true` | Show `(2) Story Name` in the tab title while hidden |
 | `threadNotifications` | `true` | Announce cross-thread messages with a banner |
 | `themeToggle` | `true` | Show the light/dark toggle in the header |
+| `titlePlacement` | `'header'` | Where StoryTitle/Subtitle/Author render: `header`, `menu`, or `none` |
+| `menuTitle` | `'Menu'` | Heading of the menu dialog |
 | `lang` | `''` | Interface language, applied to `<html lang>` (empty = `en`) |
 | `typingLabel` | `'%s is typing'` | Screen-reader announcement while a speaker types |
 | `autosave` | `false` | Persist progress to `localStorage` after every message |
@@ -803,6 +826,7 @@ What authors should still do: write alt text in image HTML (`<img src="…" alt=
 Stories authored for Trialogue work unchanged in most cases — speaker tags, links, special passages, templates, `inject_*` helpers, and the old CSS variable names are all still supported. Differences to be aware of:
 
 - jQuery and Underscore are no longer bundled. Story JavaScript that used `$(…)` or `_.…` directly needs to be rewritten in plain JavaScript. (The `$` helper *inside passages* — `<% $(function() { … }) %>` — still works, and the Snowman utility functions `either()`, `hasVisited()`, `visited()`, `renderToSelector()`, and `getStyles()` are built in.)
+- `inject_left_sidebar()` / `inject_right_sidebar()` were removed — there are no side columns in a phone. Move that content into the menu with `inject_menu()`.
 - Story events are now plain DOM `CustomEvent`s on `window` — see [Events](#events). The Snowman 2 event-name aliases are dispatched too.
 - Passages are one bubble per paragraph by default; set `story.config.splitBubbles = false` for the old one-bubble-per-passage behavior.
 - Twine 1 documents are no longer supported.
@@ -815,6 +839,9 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - **Cross-playthrough memory.** `story.remember()` / `story.recall()` / `story.forget()` persist values per story across restarts — endings-seen counters, New Game+ unlocks, characters who remember your last run.
 - **A [Recipes](#recipes) section** collecting common patterns: arrival-based branching, hesitation, affinity meters, disappearing hub choices, and playthrough memory.
 - **A sturdier debug panel.** The timeline now sits front and center with every passage tappable to *rewind* to that moment; jumping to a passage is a clean teleport (transcript resets, `s` is kept) instead of piling passages into the log; the panel stays open across reloads; and a Memory section shows what the story has `remember()`ed.
+- **Read receipts flip like a real phone's.** *Delivered* becomes *Read* the moment the reply is queued — before the typing dots — not when the message lands. `read`/`unread`/`failed` tags still override.
+- **The header is a stage.** `story.setHeader('Part Two', 'three weeks later')` repurposes the title line mid-story (undo- and save-aware); `story.config.titlePlacement` moves the StoryTitle/Subtitle/Author identity into the menu (or nowhere); `story.config.menuTitle` / `inject_menu(content, 'About')` retitle the menu dialog.
+- **Trialogue's `inject_left_sidebar()` / `inject_right_sidebar()` are gone** — there are no side columns on a phone. Use `inject_menu()`.
 
 ### Version 2.3
 

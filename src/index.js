@@ -50,21 +50,16 @@ function injectMenuSection(selector, htmlContent) {
 	}
 }
 
-window.inject_menu = function(htmlContent) {
+window.inject_menu = function(htmlContent, title) {
 	injectMenuSection('#menu-container', htmlContent);
-};
 
-/*
- * Deprecated aliases from Trialogue 1.x, which rendered these as page
- * side columns. Each fills its own additional section of the menu.
- */
+	if (typeof title === 'string') {
+		setContent('#menu-dialog-title', title);
 
-window.inject_left_sidebar = function(htmlContent) {
-	injectMenuSection('#left-sidebar-container', htmlContent);
-};
-
-window.inject_right_sidebar = function(htmlContent) {
-	injectMenuSection('#right-sidebar-container', htmlContent);
+		if (window.story) {
+			window.story.config.menuTitle = title;
+		}
+	}
 };
 
 window.inject_hint = function(htmlContent) {
