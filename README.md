@@ -568,12 +568,13 @@ While you're writing, Subtext can run with a debug panel — a devtools-style dr
 - **`?debug`** appended to any story's URL
 - **`story.config.debug = true`** in story JavaScript
 
-A `🐛 debug` button appears in the corner; it opens a panel with:
+A `🐛 debug` button appears in the corner; it opens a panel that stays open until you close it — across reloads too — with:
 
 - **Where you are** — current passage, thread, and turn count, always in view.
 - **Variables** — a live table of everything in `s`, refreshed as passages show, plus a console line that runs any JavaScript (`s.suspicion = 9`, `story.markRead()`, …).
-- **Jump to passage** — a filterable list of every passage; click one to fast-forward straight to it, no need to play through fifty passages to reach the scene you just wrote. Jumps are recorded like normal moves, so **undo** rewinds them.
-- **Timeline** — the recent history of messages and passages, plus undo / restart / save-to-URL buttons.
+- **Timeline** — every message and passage so far; **tap any passage to rewind to that moment**. The conversation rebuilds up to that point by replaying it, so template side effects re-run exactly as they did the first time.
+- **Jump to passage** — a filterable list (by name or tag, current passage highlighted); click one to fast-forward straight to it, no need to play through fifty passages to reach the scene you just wrote. A jump is a *clean teleport*: the transcript resets to the target while `s` is kept, so jumps never pile up in the log or the autosave. To go backwards, use the timeline.
+- **Memory** — what the story has `remember()`ed across playthroughs, with a forget-all button.
 
 **Your place survives rebuilds.** Debug mode turns on autosave and — crucially — saves your position by passage *name* rather than id. So with `tweego -w` watching your Twee files and a live-preview browser tab reloading on every rebuild, the story resumes exactly where you were, even after the rebuild renumbers every passage. Combined with jump, this makes the edit-preview loop instant: save the file, the tab reloads, you're still standing in the scene you're editing. (Restart, in the menu or the debug panel, clears the autosave when you *do* want a clean run.)
 
@@ -813,6 +814,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - **The story keeps score.** `s.lastChoice` (which pill was tapped), `s.previousPassage` (how the player arrived), `s.replySeconds` (how long they deliberated), and a `choice` event on every reply — the automatic trackers that let several pills share a target and still branch. See [Reply pills and sent text](#reply-pills-and-sent-text) and [Recipes](#recipes).
 - **Cross-playthrough memory.** `story.remember()` / `story.recall()` / `story.forget()` persist values per story across restarts — endings-seen counters, New Game+ unlocks, characters who remember your last run.
 - **A [Recipes](#recipes) section** collecting common patterns: arrival-based branching, hesitation, affinity meters, disappearing hub choices, and playthrough memory.
+- **A sturdier debug panel.** The timeline now sits front and center with every passage tappable to *rewind* to that moment; jumping to a passage is a clean teleport (transcript resets, `s` is kept) instead of piling passages into the log; the panel stays open across reloads; and a Memory section shows what the story has `remember()`ed.
 
 ### Version 2.3
 

@@ -1090,7 +1090,7 @@ async function run() {
 		(await debugPage.textContent('#debug-vars')).indexOf('red herring') > -1
 	);
 
-	// fast-forward: filter the passage list and jump
+	// fast-forward: filter the passage list and jump — a clean teleport
 	await debugPage.fill('#debug-filter', 'pill-demo');
 	await debugPage.click('#debug-passages button:has-text("pill-demo")');
 	await debugPage.waitForSelector('.user-response:has-text("the long version")', {
@@ -1100,13 +1100,40 @@ async function run() {
 		'jump fast-forwards to the chosen passage',
 		await debugPage.evaluate(() => window.passage.name === 'pill-demo')
 	);
-
-	// the jump is undoable from the panel
-	await debugPage.click('#debug-undo');
-	await debugPage.waitForTimeout(300);
 	check(
-		'panel undo rewinds the jump',
-		await debugPage.evaluate(() => window.passage.name !== 'pill-demo')
+		'jump teleports onto a clean transcript',
+		(await debugPage.locator('.chat-passage:has-text("hi!")').count()) === 0
+	);
+
+	// timeline time travel: make some moves, then rewind to the start
+	await debugPage.click('.user-response:has-text("the long version")');
+	await debugPage.waitForSelector('.chat-passage:has-text("nothing at all")', {
+		timeout: 15000
+	});
+	await debugPage.locator('#debug-timeline button').first().click();
+	await debugPage.waitForSelector('.user-response:has-text("the long version")', {
+		timeout: 15000
+	});
+	check(
+		'a timeline entry rewinds the story to that moment',
+		await debugPage.evaluate(
+			() =>
+				window.passage.name === 'pill-demo' &&
+				document.querySelectorAll(
+					'.chat-passage[data-speaker="you"]'
+				).length === 0
+		)
+	);
+	check(
+		'timeline section sits above the jump section',
+		await debugPage.evaluate(() => {
+			const timeline = document.getElementById('debug-timeline');
+			const jump = document.getElementById('debug-passages');
+			return !!(
+				timeline.compareDocumentPosition(jump) &
+				Node.DOCUMENT_POSITION_FOLLOWING
+			);
+		})
 	);
 
 	// resume: a reload (what a `tweego -w` rebuild triggers in a live
@@ -1140,6 +1167,10 @@ async function run() {
 				window.passage.name === 'pill-demo' &&
 				!!window.story.passage('brand-new-scene')
 		)
+	);
+	check(
+		'the panel stays open across the reload',
+		(await debugPage.locator('#debug-panel:not([hidden])').count()) === 1
 	);
 	fs.unlinkSync(shiftedTwee);
 	execFileSync('node', [path.join(__dirname, 'build-demo.js')]); // restore
