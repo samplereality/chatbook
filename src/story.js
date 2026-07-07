@@ -1549,6 +1549,8 @@ Object.assign(Story.prototype, {
 	**/
 
 	speakerHue: function(speaker) {
+		speaker = speaker == null ? '' : String(speaker);
+
 		if (!(speaker in this._speakerHues)) {
 			var hash = 0;
 
@@ -2648,6 +2650,25 @@ Object.assign(Story.prototype, {
 			prev: badge ? badge.textContent : null
 		});
 
+		this.attachReaction(wrapper, emoji);
+		this.persist();
+	},
+
+	/**
+	 Puts a tapback badge on a message wrapper. Used by react() (which
+	 also records it for undo) and by seeded reactions (which don't —
+	 they're history, not moves).
+	**/
+
+	attachReaction: function(wrapper, emoji) {
+		var bubbles = wrapper.querySelector('.chat-bubbles');
+
+		if (!bubbles) {
+			return;
+		}
+
+		var badge = bubbles.querySelector('.chat-reaction');
+
 		if (!badge) {
 			badge = document.createElement('span');
 			badge.className = 'chat-reaction';
@@ -2658,24 +2679,31 @@ Object.assign(Story.prototype, {
 		badge.textContent = emoji;
 		badge.setAttribute('aria-label', 'Reaction: ' + emoji);
 		wrapper.classList.add('has-reaction');
+		this.positionReactionBadge(wrapper);
+	},
 
-		// center the badge on the last bubble's top corner — the corner
-		// facing whoever sent the reaction
+	/**
+	 Centers a wrapper's tapback badge on its last bubble's top corner —
+	 the corner facing whoever sent the reaction. Recomputed when a
+	 hidden thread log becomes visible (offsets are 0 while hidden).
+	**/
 
+	positionReactionBadge: function(wrapper) {
+		var badge = wrapper.querySelector('.chat-reaction');
 		var bubbleEls = wrapper.querySelectorAll('.chat-passage');
 		var lastBubble = bubbleEls[bubbleEls.length - 1];
 
-		if (lastBubble) {
-			var outgoing = wrapper.getAttribute('data-speaker') === 'you';
-			var x = outgoing
-				? lastBubble.offsetLeft + 12
-				: lastBubble.offsetLeft + lastBubble.offsetWidth - 12;
-
-			badge.style.left = x + 'px';
-			badge.style.top = lastBubble.offsetTop + 'px';
+		if (!badge || !lastBubble) {
+			return;
 		}
 
-		this.persist();
+		var outgoing = wrapper.getAttribute('data-speaker') === 'you';
+		var x = outgoing
+			? lastBubble.offsetLeft + 12
+			: lastBubble.offsetLeft + lastBubble.offsetWidth - 12;
+
+		badge.style.left = x + 'px';
+		badge.style.top = lastBubble.offsetTop + 'px';
 	},
 
 	/**
@@ -3860,6 +3888,14 @@ Object.assign(Story.prototype, {
 			return this.dom.history;
 		}
 
+		// before the story lands anywhere (e.g. during seeding), a
+		// null thread means "the first one" — never a thread literally
+		// named null
+
+		if (threadId == null) {
+			threadId = this._hotThread || this.threadOrder[0];
+		}
+
 		if (!this._threadLogs[threadId]) {
 			this.createThreadLog(threadId);
 		}
@@ -4041,6 +4077,26 @@ Object.assign(Story.prototype, {
 
 			window.passage = previousPassage;
 
+			// a [react …] in a seed is an old tapback: it lands on the
+			// previous seeded message from the other side, once that
+			// message is in the log. [deliver …] means nothing in
+			// history and is dropped.
+
+			var reactions = [];
+
+			html = html
+				.replace(
+					/<div class="chat-react" data-emoji="([^"]*)"><\/div>/g,
+					function(match, emoji) {
+						reactions.push(template.unescapeHtml(emoji));
+						return '';
+					}
+				)
+				.replace(
+					/<div class="chat-deliver" data-passage="[^"]*"><\/div>/g,
+					''
+				);
+
 			var speaker = story.getPassageSpeaker(passage);
 			var nodes = story.buildPassageElement(passage, speaker, html);
 
@@ -4050,6 +4106,50 @@ Object.assign(Story.prototype, {
 				story.applyGrouping(node, log);
 				log.appendChild(node);
 			});
+
+			reactions.forEach(function(emoji) {
+				var selector =
+					speaker === 'you'
+						? '.chat-passage-wrapper:not([data-speaker="you"])'
+						: '.chat-passage-wrapper[data-speaker="you"]';
+				var targets = log.querySelectorAll(selector);
+				var target = targets[targets.length - 1];
+
+				if (target) {
+					story.attachReaction(target, emoji);
+				}
+			});
+
+			// a seeded player message honors the receipt tags: `unread`
+			// leaves it on Delivered, `failed` on Not Delivered, `read`
+			// on Read — an old message that never got an answer
+
+			if (speaker === 'you') {
+				var status =
+					passage.tags.indexOf('failed') > -1
+						? 'failed'
+						: passage.tags.indexOf('unread') > -1
+							? 'delivered'
+							: passage.tags.indexOf('read') > -1
+								? 'read'
+								: null;
+
+				if (status) {
+					var wrapper = nodes.find(function(node) {
+						return node.classList.contains(
+							'chat-passage-wrapper'
+						);
+					});
+
+					if (wrapper) {
+						story.attachReceipt(
+							wrapper,
+							wrapper.querySelector('.chat-bubbles'),
+							{ status: status }
+						);
+					}
+				}
+			}
 
 			// old messages order the inbox (and reveal their thread)
 			// but are already read: no badge, no banner
@@ -4083,6 +4183,14 @@ Object.assign(Story.prototype, {
 		log.hidden = false;
 		this.dom.inbox.hidden = true;
 		document.body.classList.remove('screen-inbox');
+
+		// tapback badges placed while this log was hidden (seeds,
+		// cross-thread reactions) had no geometry to measure — fix
+		// their positions now that the log is actually rendered
+
+		log.querySelectorAll('.has-reaction').forEach(function(wrapper) {
+			story.positionReactionBadge(wrapper);
+		});
 		this.dom.inboxButton.hidden = false;
 		this.dom.title.textContent = this.getThreadDisplayName(threadId);
 		this.unread[threadId] = 0;
