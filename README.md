@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.4.1"
+  "format-version": "2.4.2"
 }
 ```
 
@@ -866,10 +866,11 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Unreleased
+### Version 2.4.2
 
 - **`(send:)` now works in shorthand links.** `[[what? (send: what? || tell me)]]` correctly targets the passage named `what?` — previously the suffix stayed glued to the target and broke the link.
 - **`story.config.undoButton = false`** hides the header undo button, for stories where choices should be final.
+- **Documented the `story` and `passage` globals** — `<%= story.name %>` and friends, straight down the Snowman lineage.
 
 ### Version 2.4
 
