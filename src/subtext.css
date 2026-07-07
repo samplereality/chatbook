@@ -1548,10 +1548,6 @@ a {
 
 /* Misc ==================================================================== */
 
-.content-container {
-	transition: opacity 0.4s ease;
-}
-
 @keyframes t-pop {
 	from {
 		opacity: 0;

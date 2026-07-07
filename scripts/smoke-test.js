@@ -1247,7 +1247,50 @@ async function run() {
 		await page.evaluate(
 			() =>
 				typeof window.inject_left_sidebar === 'undefined' &&
-				typeof window.inject_right_sidebar === 'undefined'
+				typeof window.inject_right_sidebar === 'undefined' &&
+				typeof window.fade_in_content_containers === 'undefined'
+		)
+	);
+
+	// canonical chrome methods, with inject_* as aliases
+	await page.evaluate(() =>
+		window.story.setRestartDialog('Leave?', '<p>All will be lost.</p>')
+	);
+	check(
+		'setRestartDialog rewords the restart confirmation',
+		(await page.textContent('#exit-dialog .modal-title')) === 'Leave?'
+	);
+	check(
+		'setMenu is the canonical menu API (inject_menu delegates)',
+		await page.evaluate(() => {
+			window.story.setMenu('<p>via setMenu</p>', 'Info');
+			return (
+				document.getElementById('menu-container').textContent ===
+					'via setMenu' &&
+				document.getElementById('menu-dialog-title').textContent ===
+					'Info'
+			);
+		})
+	);
+
+	// design-language shorthands and aliases
+	check(
+		'bare [[photo->x]] offers the whole gallery like photo:*',
+		await page.evaluate(() => {
+			window.passage.links = [];
+			window.Passage.render('[[photo->photo-reply]]');
+			return (
+				window.story.getPhotoOffers(window.passage.links).length ===
+				Object.keys(window.story.gallery).length
+			);
+		})
+	);
+	check(
+		'meta-aside completes the narration tag family',
+		await page.evaluate(
+			() =>
+				window.story.getAsideSide({ tags: ['meta-aside'] }) ===
+				'right'
 		)
 	);
 

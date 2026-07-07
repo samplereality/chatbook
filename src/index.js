@@ -37,28 +37,26 @@ window.inject_nav_menu = function(htmlContent) {
 };
 
 /*
- * Fills the menu modal and reveals the header Menu button.
+ * Legacy Trialogue-era aliases. The canonical APIs are
+ * story.setMenu(html, title) and story.setRestartDialog(...).
  */
 
-function injectMenuSection(selector, htmlContent) {
-	setContent(selector, htmlContent);
+window.inject_menu = function(htmlContent, title) {
+	if (window.story) {
+		window.story.setMenu(htmlContent, title);
+		return;
+	}
+
+	setContent('#menu-container', htmlContent);
 
 	var menu = document.getElementById('nav-link-menu');
 
-	if (menu.hidden) {
+	if (menu) {
 		menu.hidden = false;
 	}
-}
-
-window.inject_menu = function(htmlContent, title) {
-	injectMenuSection('#menu-container', htmlContent);
 
 	if (typeof title === 'string') {
 		setContent('#menu-dialog-title', title);
-
-		if (window.story) {
-			window.story.config.menuTitle = title;
-		}
 	}
 };
 
@@ -76,15 +74,14 @@ window.inject_hint = function(htmlContent) {
 };
 
 window.inject_modal = function(titleContent, bodyContent, footerContent) {
+	if (window.story) {
+		window.story.setRestartDialog(titleContent, bodyContent, footerContent);
+		return;
+	}
+
 	setContent('#exit-dialog .modal-title', titleContent);
 	setContent('#exit-dialog .modal-body', bodyContent);
 	setContent('#exit-dialog .modal-footer', footerContent);
-};
-
-window.fade_in_content_containers = function() {
-	document.querySelectorAll('.content-container').forEach(function(el) {
-		el.style.opacity = 1;
-	});
 };
 
 /*

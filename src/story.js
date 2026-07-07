@@ -1659,6 +1659,7 @@ Object.assign(Story.prototype, {
 			var display = link.display.trim();
 
 			return (
+				display !== 'photo' &&
 				display.indexOf(PHOTO_LINK_PREFIX) !== 0 &&
 				display !== 'location' &&
 				display.indexOf(LOCATION_LINK_PREFIX) !== 0 &&
@@ -2199,11 +2200,17 @@ Object.assign(Story.prototype, {
 		links.forEach(function(link) {
 			var display = link.display.trim();
 
-			if (display.indexOf(PHOTO_LINK_PREFIX) !== 0) {
+			// bare `photo` offers the whole gallery, like `photo:*` —
+			// the same shorthand `location` and `input` already allow
+
+			if (display !== 'photo' && display.indexOf(PHOTO_LINK_PREFIX) !== 0) {
 				return;
 			}
 
-			var names = display.substring(PHOTO_LINK_PREFIX.length).trim();
+			var names =
+				display === 'photo'
+					? '*'
+					: display.substring(PHOTO_LINK_PREFIX.length).trim();
 			var list =
 				names === '*' || names === ''
 					? Object.keys(story.gallery)
@@ -3005,6 +3012,63 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 Fills the menu dialog and reveals the header's Menu button. An
+	 optional second argument retitles the dialog:
+
+	   story.setMenu('<h3>About</h3><p>…</p>', 'About');
+
+	 (inject_menu() is the legacy Trialogue-era alias.)
+	**/
+
+	setMenu: function(html, title) {
+		var container = byId('menu-container');
+
+		if (container) {
+			container.innerHTML = html;
+		}
+
+		if (this.dom && this.dom.menu) {
+			this.dom.menu.hidden = false;
+		}
+
+		if (typeof title === 'string') {
+			this.config.menuTitle = title;
+
+			var heading = byId('menu-dialog-title');
+
+			if (heading) {
+				heading.textContent = title;
+			}
+		}
+	},
+
+	/**
+	 Rewords the restart-confirmation dialog — its title, body HTML,
+	 and footer buttons. (inject_modal() is the legacy alias; the
+	 default buttons carry data-dialog-action="cancel" / "restart".)
+	**/
+
+	setRestartDialog: function(title, body, footer) {
+		var dialog = byId('exit-dialog');
+
+		if (!dialog) {
+			return;
+		}
+
+		var apply = function(selector, html) {
+			var el = dialog.querySelector(selector);
+
+			if (el && typeof html === 'string') {
+				el.innerHTML = html;
+			}
+		};
+
+		apply('.modal-title', title);
+		apply('.modal-body', body);
+		apply('.modal-footer', footer);
+	},
+
+	/**
 	 Resolves how a speakerless (narrator) passage should be presented:
 	 a per-passage tag wins, then config.metaStyle, defaulting to 'chat'.
 	**/
@@ -3048,7 +3112,8 @@ Object.assign(Story.prototype, {
 
 		if (
 			passage.tags.indexOf('aside-right') > -1 ||
-			passage.tags.indexOf('aside') > -1
+			passage.tags.indexOf('aside') > -1 ||
+			passage.tags.indexOf('meta-aside') > -1
 		) {
 			return 'right';
 		}
@@ -3598,7 +3663,8 @@ Object.assign(Story.prototype, {
 
 	pcolophon: function() {
 		if (
-			window.passage.tags.indexOf('End') > -1 &&
+			(window.passage.tags.indexOf('End') > -1 ||
+				window.passage.tags.indexOf('end') > -1) &&
 			this.passage('StoryColophon') !== null
 		) {
 			var meta = document.createElement('div');
