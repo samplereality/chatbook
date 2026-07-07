@@ -28,7 +28,7 @@ unknown: Unknown Number; color: #52525e; hidden: true
 :: mom-old-1 [thread-mom speaker-mom seed]
 Did you eat today? You never answer me.
 
-:: mom-old-2 [thread-mom speaker-you seed]
+:: mom-old-2 [thread-mom speaker-you seed unread]
 yes mom. going to bed, talk tomorrow ❤️
 
 

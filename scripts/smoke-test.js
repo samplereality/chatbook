@@ -1371,6 +1371,30 @@ async function run() {
 			);
 		})
 	);
+	check(
+		'a seeded player message honors its receipt tag',
+		await inboxPage.evaluate(() => {
+			const receipt = document.querySelector(
+				'.thread-log[data-thread="mom"] ' +
+				'.chat-passage-wrapper[data-speaker="you"] .chat-receipt'
+			);
+			return !!receipt && receipt.textContent === 'Delivered';
+		})
+	);
+	check(
+		'markUnread with no hot thread cannot corrupt the inbox',
+		await inboxPage.evaluate(() => {
+			const prev = window.story._hotThread;
+			window.story._hotThread = null;
+			window.story.markUnread();
+			window.story._hotThread = prev;
+			window.story.renderInbox();
+			return (
+				window.story.threadOrder.indexOf(null) === -1 &&
+				!document.querySelector('.thread-log[data-thread="null"]')
+			);
+		})
+	);
 
 	await inboxPage.click('.user-response:has-text("what happened")');
 	await inboxPage.waitForSelector('#meta-notification:not([hidden])', {

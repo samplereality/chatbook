@@ -1549,6 +1549,8 @@ Object.assign(Story.prototype, {
 	**/
 
 	speakerHue: function(speaker) {
+		speaker = speaker == null ? '' : String(speaker);
+
 		if (!(speaker in this._speakerHues)) {
 			var hash = 0;
 
@@ -3860,6 +3862,14 @@ Object.assign(Story.prototype, {
 			return this.dom.history;
 		}
 
+		// before the story lands anywhere (e.g. during seeding), a
+		// null thread means "the first one" — never a thread literally
+		// named null
+
+		if (threadId == null) {
+			threadId = this._hotThread || this.threadOrder[0];
+		}
+
 		if (!this._threadLogs[threadId]) {
 			this.createThreadLog(threadId);
 		}
@@ -4050,6 +4060,37 @@ Object.assign(Story.prototype, {
 				story.applyGrouping(node, log);
 				log.appendChild(node);
 			});
+
+			// a seeded player message honors the receipt tags: `unread`
+			// leaves it on Delivered, `failed` on Not Delivered, `read`
+			// on Read — an old message that never got an answer
+
+			if (speaker === 'you') {
+				var status =
+					passage.tags.indexOf('failed') > -1
+						? 'failed'
+						: passage.tags.indexOf('unread') > -1
+							? 'delivered'
+							: passage.tags.indexOf('read') > -1
+								? 'read'
+								: null;
+
+				if (status) {
+					var wrapper = nodes.find(function(node) {
+						return node.classList.contains(
+							'chat-passage-wrapper'
+						);
+					});
+
+					if (wrapper) {
+						story.attachReceipt(
+							wrapper,
+							wrapper.querySelector('.chat-bubbles'),
+							{ status: status }
+						);
+					}
+				}
+			}
 
 			// old messages order the inbox (and reveal their thread)
 			// but are already read: no badge, no banner
