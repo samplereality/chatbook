@@ -1671,21 +1671,38 @@ button:focus-visible,
 	margin-bottom: 0.4rem;
 }
 
-#debug-vars {
+.debug-table {
 	width: 100%;
 	border-collapse: collapse;
 }
 
-#debug-vars td {
+.debug-table td {
 	padding: 0.15rem 0.4rem 0.15rem 0;
 	border-bottom: 1px solid #303134;
 	vertical-align: top;
 	word-break: break-word;
 }
 
-#debug-vars td:first-child {
+.debug-table td:first-child {
 	color: #8ab4f8;
 	white-space: nowrap;
+}
+
+.debug-note {
+	margin: 0 0 0.4rem;
+	color: #9aa0a6;
+	font-size: 11px;
+}
+
+#debug-forget {
+	margin-top: 0.5rem;
+	padding: 0.25rem 0.55rem;
+	border: 1px solid #5f6368;
+	border-radius: 0.35rem;
+	background: #303134;
+	color: #e8eaed;
+	font: inherit;
+	cursor: pointer;
 }
 
 #debug-eval {
@@ -1749,12 +1766,35 @@ button:focus-visible,
 #debug-timeline {
 	margin: 0;
 	padding-left: 1.4rem;
-	max-height: 12rem;
+	max-height: 14rem;
 	overflow-y: auto;
 }
 
 #debug-timeline .debug-you {
 	color: #9aa0a6;
+}
+
+#debug-timeline button {
+	padding: 0.1rem 0.3rem;
+	border: 0;
+	border-radius: 0.3rem;
+	background: none;
+	color: #8ab4f8;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-color: #3c4043;
+	text-underline-offset: 2px;
+}
+
+#debug-timeline button:hover {
+	background: #303134;
+}
+
+#debug-passages .debug-current {
+	background: #283142;
+	color: #8ab4f8;
 }
 
 @media (prefers-reduced-motion: reduce) {
