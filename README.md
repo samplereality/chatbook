@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.5.0"
+  "format-version": "2.6.0"
 }
 ```
 
@@ -986,7 +986,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Unreleased
+### Version 2.6
 
 - **The Trash.** Conversations can be archived — `archived: true` in `StoryThreads`, or `story.archiveThread(id)` mid-story — into a Trash section at the bottom of the inbox where the player can still read them. Any message landing in an archived thread recovers it (or `story.restoreThread(id)`); `threadarchived`/`threadrestored` events fire. See [Multiple conversations](#multiple-conversations).
 - **An [Extending Subtext](#extending-subtext) chapter**: the stable API contract, and worked examples of adding features from story JavaScript — custom directives via prototype wrapping, behavior via events.
