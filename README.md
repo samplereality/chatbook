@@ -26,7 +26,7 @@ Subtext is a successor to [Trialogue](https://github.com/phivk/trialogue) by Phi
 
 **Interface** — [Notifications](#notifications) · [Page chrome and menus](#page-chrome-and-menus) · [Debug mode](#debug-mode)
 
-**More** — [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating from Trialogue](#migrating-from-trialogue) · [Changelog](#changelog) · [Credits](#credits)
+**More** — [Extending Subtext](#extending-subtext) · [Recipes](#recipes) · [Accessibility](#accessibility) · [Migrating from Trialogue](#migrating-from-trialogue) · [Changelog](#changelog) · [Credits](#credits)
 
 ## Getting started
 
@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.5.0"
+  "format-version": "2.6.0"
 }
 ```
 
@@ -611,6 +611,21 @@ Did you eat today? You never answer me.
 
 Seeds follow passage order, survive save/restore, and stay put under undo (they're history, not moves). Note that seeding a hidden thread reveals it — old messages mean the contact isn't a surprise.
 
+**The Trash.** Conversations can be archived — out of the main inbox, never deleted. A **Trash** section appears at the bottom of the inbox; the player can open it and read everything inside. Declare a thread `archived: true` to start it there (old spam, dead group chats — inbox texture that rewards snoops), or move one mid-story:
+
+```
+:: unknown-leaves [thread-unknown speaker-unknown]
+you know everything you need to know
+
+[system Unknown Number has left the conversation]
+
+<% $(function() { story.archiveThread('unknown'); }) %>
+```
+
+(Archive your *own* thread inside the `$(…)` ready-helper, as above — a plain `<% story.archiveThread(…) %>` runs before the passage's own message lands, which would immediately recover it.)
+
+Recovery is symmetric with hidden threads: **any message landing in an archived conversation pulls it out of the Trash** — a contact you archived texting back is exactly the beat that deserves it — or call `story.restoreThread(id)`. `threadarchived` / `threadrestored` events fire for scripting; undo and save/restore carry Trash state like everything else; the section label localizes via `story.config.trashLabel`.
+
 State for branching: nothing is required, but the runtime tracks it all — `story.unread` (per-thread counts), `story.threads`, and the active thread are saved and restored, and undo rewinds thread-by-thread. Config: `story.config.threadNotifications = false` silences the cross-thread banners (the inbox badges still update).
 
 A complete example is [`docs/subtext-inbox-demo.twee`](docs/subtext-inbox-demo.twee) — a three-thread thriller — playable at [the inbox demo](https://samplereality.github.io/subtext/inbox-demo.html).
@@ -753,6 +768,7 @@ story.config.autosave = true;
 | `titleNotifications` | `true` | Show `(2) Story Name` in the tab title while hidden |
 | `threadNotifications` | `true` | Announce cross-thread messages with a banner |
 | `threadIdleHint` | `'Nothing to say right now'` | Placeholder in the disabled composer on parked threads (`''` for none) |
+| `trashLabel` | `'Trash'` | Label on the inbox's archived-conversations section |
 | `themeToggle` | `true` | Show the light/dark toggle in the header |
 | `undoButton` | `true` | Show the header undo button (set `false` to make choices final) |
 | `titlePlacement` | `'header'` | Where StoryTitle/Subtitle/Author render: `header`, `menu`, or `none` |
@@ -816,12 +832,58 @@ window.addEventListener('photosent', function (e) {
 | `reaction` | the player reacts with a tapback | `{ emoji, story }` |
 | `timeout` | a response timer expires | `{ target, text, story }` |
 | `textinput` | the player sends free-text input | `{ text, target, story }` |
+| `threadarchived` | a conversation moves to the Trash | `{ thread, story }` |
+| `threadrestored` | a conversation leaves the Trash | `{ thread, story }` |
 | `save` | progress is written to a save | `{ story }` |
 | `restore` | a save begins replaying | `{ story }` |
 | `restore:after` | a save finishes replaying | `{ story }` |
 | `restorefailed` | a save can't be parsed | `{ error }` |
 
 The Snowman 2 names (`sm.story.started`, `sm.passage.showing`, `sm.passage.shown`, `sm.passage.hidden`, `sm.story.saved`, `sm.restore.success`, `sm.restore.failed`, `sm.story.error`) are dispatched as aliases, so snippets written against Snowman 2 documentation work too.
+
+## Extending Subtext
+
+Not every idea needs to live in the format. Subtext is extendable from story JavaScript the same way SugarCube is — through three surfaces, in escalating order of power:
+
+1. **[Events](#events)** — observe everything that happens (`choice`, `photosent`, `threadarchived`, `showpassage:after`, …) and react from a listener.
+2. **The `story.*` API** — every documented method is callable from your code: `deliver`, `archiveThread`, `setHeader`, `remember`, `debugJump`, all of it. Features like the Trash are deliberately *API-first*: the format supplies the UI, your story drives it with the same verbs an extension would use.
+3. **Prototype wrapping** — `window.Story.prototype` and `window.Passage.prototype` are exposed, so story JavaScript can wrap any method and change how the format itself behaves.
+
+### What's stable
+
+Everything *documented* is contract: the events table, the `story.*` methods and `config` keys in these docs, the `s.*` trackers, the passage tags and directives, and the styling hooks (`--t-*` variables, `data-speaker` / `data-thread` attributes, and the class names shown throughout: `.chat-passage`, `.chat-timestamp`, `.chat-system`, `.user-response`, `.inbox-row`, `.thread-log`, …). Properties and methods with a leading underscore (`_threadActivity`, `_hotThread`) are internals — they can change in any release, so an extension that touches them is living dangerously.
+
+### Example: a custom directive, no format changes
+
+Wrap the passage renderer to invent your own `[shrug]` markup:
+
+```js
+var render = Passage.prototype.render;
+
+Passage.prototype.render = function () {
+	return render.call(this).replace(/\[shrug\]/g, '¯\\_(ツ)_/¯');
+};
+```
+
+Every passage now understands `[shrug]` — in live messages, seeds, and deliveries alike, because they all flow through the same renderer.
+
+### Example: behavior from events
+
+Invent a `cleanup` passage tag that sweeps every *other* conversation into the Trash, using only public API:
+
+```js
+window.addEventListener('showpassage:after', function (e) {
+	if (e.detail.passage.tags.indexOf('cleanup') === -1) { return; }
+
+	var here = story.getPassageThread(e.detail.passage);
+
+	story.threadOrder.forEach(function (id) {
+		if (id !== here) { story.archiveThread(id); }
+	});
+});
+```
+
+One rule of thumb for what belongs where: **if it changes what the story does, write it in story JavaScript; if it changes what the phone *is*, it belongs in the format** — [open an issue](https://github.com/samplereality/subtext/issues). UI that touches the transcript needs care the format already takes for you (messages are never removed from the `role="log"` live region, or screen readers re-announce the whole conversation — build on `story.*` verbs rather than editing the chat DOM directly).
 
 ## Recipes
 
@@ -923,6 +985,12 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.6
+
+- **The Trash.** Conversations can be archived — `archived: true` in `StoryThreads`, or `story.archiveThread(id)` mid-story — into a Trash section at the bottom of the inbox where the player can still read them. Any message landing in an archived thread recovers it (or `story.restoreThread(id)`); `threadarchived`/`threadrestored` events fire. See [Multiple conversations](#multiple-conversations).
+- **An [Extending Subtext](#extending-subtext) chapter**: the stable API contract, and worked examples of adding features from story JavaScript — custom directives via prototype wrapping, behavior via events.
+- **Inbox previews fixed** for conversations whose last message carries a receipt or is followed by a `[system]` chip.
 
 ### Version 2.5
 

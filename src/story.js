@@ -275,6 +275,8 @@ var Story = function() {
 		   conversation the story isn't in right now (set '' to show
 		   nothing instead) */
 		threadIdleHint: 'Nothing to say right now',
+		/* label on the inbox's Trash section (localize here) */
+		trashLabel: 'Trash',
 		/* show the light/dark toggle in the header */
 		themeToggle: true,
 		/* show the header undo button once there is something to undo
@@ -364,6 +366,11 @@ var Story = function() {
 	this._threadActivity = {};
 	this._activitySeq = 0;
 	this._scrollPositions = {};
+
+	/* threads moved to the Trash (archived, readable, recoverable) */
+	this._threadArchived = {};
+	this._trashOpen = false;
+	this._seeding = false;
 
 	this._audioCtx = null;
 	this._playingAudio = null;
@@ -3546,6 +3553,7 @@ Object.assign(Story.prototype, {
 			screen: this._screen,
 			unread: deepClone(this.unread),
 			threadActivity: deepClone(this._threadActivity),
+			threadArchived: deepClone(this._threadArchived),
 			activitySeq: this._activitySeq,
 			timelineLength: this.timeline.length,
 			passageId: window.passage ? window.passage.id : null,
@@ -3633,6 +3641,7 @@ Object.assign(Story.prototype, {
 			this._hotThread = checkpoint.hotThread;
 			this.unread = checkpoint.unread || {};
 			this._threadActivity = checkpoint.threadActivity || {};
+			this._threadArchived = checkpoint.threadArchived || {};
 			this._activitySeq = checkpoint.activitySeq || 0;
 			this.setThreadTyping(null);
 		}
@@ -3836,7 +3845,7 @@ Object.assign(Story.prototype, {
 
 				match[2].split(';').forEach(function(part) {
 					var kv = part.match(
-						/^\s*(name|avatar|color|hidden)\s*:\s*(.+?)\s*$/
+						/^\s*(name|avatar|color|hidden|archived)\s*:\s*(.+?)\s*$/
 					);
 
 					if (kv) {
@@ -3852,6 +3861,11 @@ Object.assign(Story.prototype, {
 
 				profile.hidden =
 					String(profile.hidden).toLowerCase() === 'true';
+
+				// archived threads start in the Trash
+
+				profile.archived =
+					String(profile.archived).toLowerCase() === 'true';
 
 				threads[match[1]] = profile;
 				story.threadOrder.push(match[1]);
@@ -4019,6 +4033,10 @@ Object.assign(Story.prototype, {
 
 		this.threadOrder.slice().forEach(function(id) {
 			story.createThreadLog(id);
+
+			if (story.getThreadProfile(id).archived) {
+				story._threadArchived[id] = true;
+			}
 		});
 
 		this.dom.inboxButton.addEventListener('click', function() {
@@ -4031,6 +4049,13 @@ Object.assign(Story.prototype, {
 	bumpThreadActivity: function(threadId) {
 		this._activitySeq += 1;
 		this._threadActivity[threadId] = this._activitySeq;
+
+		// anything happening in an archived thread pulls it out of the
+		// Trash — except seeds, which are history, not happenings
+
+		if (this._threadArchived[threadId] && !this._seeding) {
+			this.restoreThread(threadId);
+		}
 	},
 
 	/**
@@ -4043,6 +4068,40 @@ Object.assign(Story.prototype, {
 	revealThread: function(threadId) {
 		this.bumpThreadActivity(threadId);
 		this.renderInbox();
+	},
+
+	/**
+	 Moves a conversation to the Trash: out of the main inbox, still
+	 readable (and openable) under the inbox's Trash section, never
+	 deleted. Any message later landing in the thread recovers it
+	 automatically, or call restoreThread(id). Declare a thread
+	 `archived: true` in StoryThreads to start it in the Trash.
+	**/
+
+	archiveThread: function(threadId) {
+		if (!this.multiThread || !this._threadLogs[threadId]) {
+			return;
+		}
+
+		this._threadArchived[threadId] = true;
+		this.renderInbox();
+		this.persist();
+		dispatch('threadarchived', { thread: threadId, story: this });
+	},
+
+	/**
+	 Recovers a conversation from the Trash.
+	**/
+
+	restoreThread: function(threadId) {
+		if (!this._threadArchived[threadId]) {
+			return;
+		}
+
+		delete this._threadArchived[threadId];
+		this.renderInbox();
+		this.persist();
+		dispatch('threadrestored', { thread: threadId, story: this });
 	},
 
 	/**
@@ -4060,6 +4119,8 @@ Object.assign(Story.prototype, {
 		}
 
 		var story = this;
+
+		this._seeding = true;
 
 		this.passages.forEach(function(passage) {
 			if (!passage || passage.tags.indexOf('seed') === -1) {
@@ -4168,6 +4229,7 @@ Object.assign(Story.prototype, {
 			story.bumpThreadActivity(threadId);
 		});
 
+		this._seeding = false;
 		this.renderInbox();
 	},
 
@@ -4277,16 +4339,8 @@ Object.assign(Story.prototype, {
 
 		this.dom.inboxList.textContent = '';
 
-		ordered.forEach(function(id) {
+		var buildRow = function(id, trashed) {
 			var profile = story.getThreadProfile(id);
-
-			// a hidden thread joins the inbox only once something has
-			// happened in it — no spoiling the Unknown Number
-
-			if (profile.hidden && !story._threadActivity[id]) {
-				return;
-			}
-
 			var row = document.createElement('li');
 			var button = document.createElement('button');
 
@@ -4332,11 +4386,22 @@ Object.assign(Story.prototype, {
 				preview.classList.add('inbox-preview--typing');
 			}
 			else {
+				// the last bubble of the last message group; receipts and
+				// [system] chips are divs too, so :last-of-type lies here
+
 				var log = story._threadLogs[id];
-				var last = log &&
-					log.querySelector(
-						'.chat-passage-wrapper:last-of-type .chat-passage:last-of-type'
-					);
+				var wrappers = log
+					? log.querySelectorAll('.chat-passage-wrapper')
+					: [];
+				var lastWrapper = wrappers.length
+					? wrappers[wrappers.length - 1]
+					: null;
+				var bubbles = lastWrapper
+					? lastWrapper.querySelectorAll('.chat-passage')
+					: [];
+				var last = bubbles.length
+					? bubbles[bubbles.length - 1]
+					: null;
 
 				preview.textContent = last
 					? last.textContent.trim().slice(0, 80)
@@ -4366,9 +4431,62 @@ Object.assign(Story.prototype, {
 				story.openThread(id);
 			});
 
+			if (trashed) {
+				button.classList.add('inbox-row--trash');
+			}
+
 			row.appendChild(button);
 			story.dom.inboxList.appendChild(row);
+		};
+
+		// hidden threads that never spoke appear nowhere — not even in
+		// the Trash
+
+		var visible = ordered.filter(function(id) {
+			var profile = story.getThreadProfile(id);
+
+			return !(profile.hidden && !story._threadActivity[id]);
 		});
+
+		visible
+			.filter(function(id) { return !story._threadArchived[id]; })
+			.forEach(function(id) { buildRow(id, false); });
+
+		var trashed = visible.filter(function(id) {
+			return story._threadArchived[id];
+		});
+
+		if (trashed.length > 0) {
+			var trashRow = document.createElement('li');
+			var trashButton = document.createElement('button');
+
+			trashButton.type = 'button';
+			trashButton.className = 'inbox-trash-toggle';
+			trashButton.setAttribute(
+				'aria-expanded',
+				String(this._trashOpen)
+			);
+			trashButton.innerHTML =
+				'<span class="inbox-trash-icon" aria-hidden="true">🗑</span>' +
+				'<span></span>' +
+				'<span class="inbox-trash-count"></span>';
+			trashButton.children[1].textContent = this.config.trashLabel;
+			trashButton.querySelector('.inbox-trash-count').textContent =
+				trashed.length;
+			trashButton.addEventListener('click', function() {
+				story._trashOpen = !story._trashOpen;
+				story.renderInbox();
+			});
+			trashRow.appendChild(trashButton);
+			this.dom.inboxList.appendChild(trashRow);
+
+			if (this._trashOpen) {
+				trashed.forEach(function(id) { buildRow(id, true); });
+			}
+		}
+		else {
+			this._trashOpen = false;
+		}
 	},
 
 	/**
@@ -4845,6 +4963,7 @@ Object.assign(Story.prototype, {
 			save.threadState = {
 				unread: this.unread,
 				activity: this._threadActivity,
+				archived: this._threadArchived,
 				seq: this._activitySeq,
 				screen: this._screen,
 				viewed: this._viewedThread
@@ -5008,6 +5127,12 @@ Object.assign(Story.prototype, {
 				});
 				this._threadActivity = {};
 				this._activitySeq = 0;
+				this._threadArchived = {};
+				this.threadOrder.forEach(function(id) {
+					if (storyReset.getThreadProfile(id).archived) {
+						storyReset._threadArchived[id] = true;
+					}
+				});
 				this.setThreadTyping(null);
 
 				// the wiped logs get their seed history back before
@@ -5110,6 +5235,7 @@ Object.assign(Story.prototype, {
 
 				this.unread = ts.unread || this.unread;
 				this._threadActivity = ts.activity || this._threadActivity;
+				this._threadArchived = ts.archived || this._threadArchived;
 				this._activitySeq = ts.seq || this._activitySeq;
 
 				Object.keys(this._threadLogs).forEach(function(id) {

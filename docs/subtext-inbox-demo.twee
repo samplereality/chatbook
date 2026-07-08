@@ -2,7 +2,7 @@
 {
   "ifid": "7A2E9C41-5B83-4D26-9F0A-8E1C4B7D3A55",
   "format": "Subtext",
-  "format-version": "2.5.0"
+  "format-version": "2.6.0"
 }
 
 :: StoryTitle
@@ -23,7 +23,11 @@ story.config.hintFadeAfter = 3;
 sam: Sam
 mom: Mom
 unknown: Unknown Number; color: #52525e; hidden: true
+pizza: Pizza Palace; color: #b3541e; archived: true
 
+
+:: pizza-old [thread-pizza speaker-pizza seed]
+Your order is ready for pickup! Rate your experience?
 
 :: mom-old-1 [thread-mom speaker-mom seed]
 Did you eat today? You never answer me.
@@ -39,6 +43,7 @@ yes mom. going to bed, talk tomorrow ❤️
 sam: Sam; color: #148f77
 mom: Mom; color: #8e44ad
 unknown: Unknown; color: #3a3a44
+pizza: Pizza Palace; color: #b3541e
 
 
 :: Start [thread-sam speaker-sam]
@@ -115,6 +120,8 @@ Your friend is close to the truth. So is the van.
 Meet me where this all started. You know the building.
 
 [system Unknown Number has left the conversation]
+
+<% $(function() { story.archiveThread('unknown'); }) %>
 
 [[…to be continued->the-end]]
 
