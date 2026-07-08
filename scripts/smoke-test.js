@@ -1357,7 +1357,7 @@ async function run() {
 	);
 	check(
 		'one log per declared thread',
-		(await inboxPage.locator('.thread-log').count()) === 3
+		(await inboxPage.locator('.thread-log').count()) === 4
 	);
 
 	// seed-tagged passages are already in Mom's thread — old and read
@@ -1433,9 +1433,42 @@ async function run() {
 	await inboxPage.waitForSelector('#inbox:not([hidden])');
 	check(
 		'a hidden thread stays out of the inbox until it speaks',
-		(await inboxPage.locator('.inbox-row').count()) === 2 &&
+		(await inboxPage.locator('.inbox-row:not(.inbox-row--trash)').count()) === 2 &&
 		(await inboxPage.locator('.inbox-row:has-text("Unknown")').count()) === 0
 	);
+	check(
+		'an archived thread waits in the Trash instead of the inbox',
+		(await inboxPage.locator('.inbox-row:has-text("Pizza")').count()) === 0 &&
+		(await inboxPage.textContent('.inbox-trash-count')) === '1'
+	);
+	await inboxPage.click('.inbox-trash-toggle');
+	check(
+		'the Trash opens to readable archived conversations',
+		(await inboxPage.locator('.inbox-row--trash:has-text("Pizza")').count()) === 1
+	);
+	await inboxPage.click('.inbox-row--trash:has-text("Pizza")');
+	await inboxPage.waitForSelector('.thread-log[data-thread="pizza"]:not([hidden])');
+	check(
+		'an archived conversation is readable, seeds and all',
+		(await inboxPage
+			.locator('.thread-log[data-thread="pizza"]')
+			.textContent()).indexOf('order is ready') > -1
+	);
+	check(
+		'a message landing in an archived thread recovers it',
+		await inboxPage.evaluate(() => {
+			const inTrash = !!window.story._threadArchived.pizza;
+			window.story.deliver('pizza-old', {
+				instant: true,
+				record: false
+			});
+			const recovered = !window.story._threadArchived.pizza;
+			window.story.archiveThread('pizza'); // put the demo back
+			return inTrash && recovered;
+		})
+	);
+	await inboxPage.click('#nav-link-inbox');
+	await inboxPage.waitForSelector('#inbox:not([hidden])');
 	check(
 		'unread badge on the delivered thread',
 		(await inboxPage
@@ -1596,6 +1629,12 @@ async function run() {
 	await inboxPage.waitForSelector(
 		'.thread-log[data-thread="unknown"] .chat-system',
 		{ state: 'attached', timeout: 15000 }
+	);
+	check(
+		'a passage can archive its own thread (deferred via $)',
+		await inboxPage.evaluate(
+			() => !!window.story._threadArchived.unknown
+		)
 	);
 	check(
 		'a trailing [system ...] chip lands below its message group',
