@@ -4782,7 +4782,7 @@ Object.assign(Story.prototype, {
 		var speaker = this.getPassageSpeaker(passage);
 
 		// an explicit delay wins; an `instant` tag on the target means
-		// it always lands with no typing pause (an "And..." pill paging
+		// it always lands with no typing pause (a silent pill paging
 		// through a montage); otherwise pace by message length
 
 		var delay =
