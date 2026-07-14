@@ -613,6 +613,10 @@ Three things move the story between threads:
   I know you're awake.
   ```
 
+  If the delivered passage offers reply pills of its own, the story's pending choices travel with it: they appear when the player opens that thread, and the reply lands there. That makes `[deliver]` a way to *hand the story off* to another conversation — end a beat with no pills, deliver a message that has them, and the player follows the notification to answer it. (If several pending passages offer pills, the last to arrive wins.)
+
+  A delivered message keeps its own sender. Any speaker can text into any thread, so group chats work: in a `thread-family` conversation, a passage tagged `speaker-matt` shows Matt's name and color on the bubble, and the notification banner and inbox preview read "Matt: …" under the thread's name — the way a real phone attributes group messages.
+
 - **The player**, by opening the inbox (the ‹ chevron on the header's left) or tapping a notification banner, can read any thread at any time. The chevron itself is yours to stage: `story.config.inboxButton = false` starts the story feeling like a single conversation, and `<% story.showInboxButton() %>` in a later passage reveals that there was a whole inbox all along (`hideInboxButton()` reverses it). Only the thread holding the story's pending choices shows reply chips; a parked thread shows a grayed-out composer instead — *"Nothing to say right now"* — so the read-only state stays inside the fiction (wording via `story.config.threadIdleHint`; set `''` for none).
 
 The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them. Cross-thread banners cut long messages off with an ellipsis, the way real notifications do.
@@ -1059,6 +1063,8 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 ### Version 2.6.2
 
 - **The `instant` passage tag** — a tagged passage always arrives immediately, with no typing indicator, however it's reached. Made for a silent "and then?" pill paging through a montage at the player's own speed. See [Message chains and montages](#message-chains-and-montages).
+- **Delivered messages carry their reply pills.** A `[deliver]`ed passage with links used to discard them; now the story's pending choices travel with the message and appear when the player opens its thread — `[deliver]` can hand the story off to another conversation.
+- **Fixed: group messages are attributed to their sender.** A cross-speaker delivery (`speaker-matt` into `thread-family`) used to look like it came from the whole thread; the notification banner and inbox preview now read "Matt: …" under the thread's name, like a real phone.
 
 ### Version 2.6.1
 

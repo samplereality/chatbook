@@ -1826,6 +1826,68 @@ async function run() {
 		})
 	);
 
+	// [deliver] into a "group" thread: the banner and inbox preview
+	// name the actual sender, and reply pills travel with the message
+	await inboxPage.evaluate(() => {
+		// clear any banner left over from the previous checks
+		document.getElementById('meta-notification').hidden = true;
+
+		window.story.config.minTypingDelay = 50;
+		window.story.config.maxTypingDelay = 100;
+		window.story.openThread('sam');
+		window.story.deliver('mom-crossover');
+	});
+	await inboxPage.waitForSelector('#meta-notification:not([hidden])');
+	check(
+		'a cross-speaker delivery names its sender in the banner',
+		(await inboxPage.textContent('#meta-notification-label')) === 'Mom' &&
+			(await inboxPage.textContent('#meta-notification-body')).indexOf(
+				'Sam: '
+			) === 0
+	);
+
+	await inboxPage.evaluate(() => window.story.openThread('mom'));
+	await inboxPage.waitForSelector(
+		'.user-response:has-text("my lips are sealed")'
+	);
+	check('a delivered passage with pills moves the choices to its thread', true);
+
+	await inboxPage.click('.user-response:has-text("my lips are sealed")');
+	await inboxPage.waitForSelector(
+		'.thread-log[data-thread="mom"] .chat-passage:has-text("stay away from that building")',
+		{ timeout: 15000 }
+	);
+	check(
+		'replying to a delivered message continues in its thread',
+		await inboxPage.evaluate(() => {
+			const log = document.querySelector(
+				'.thread-log[data-thread="mom"]'
+			);
+
+			return log.textContent.indexOf('my lips are sealed') > -1;
+		})
+	);
+
+	await inboxPage.evaluate(() => window.story.openInbox());
+	check(
+		'a cross-speaker inbox preview names the sender',
+		await inboxPage.evaluate(() => {
+			const rows = Array.from(
+				document.querySelectorAll('.inbox-row')
+			);
+			const mom = rows.find(
+				(row) =>
+					row.querySelector('.inbox-name').textContent === 'Mom'
+			);
+
+			return (
+				mom.querySelector('.inbox-preview').textContent.indexOf(
+					'Sam: ok. stay away'
+				) === 0
+			);
+		})
+	);
+
 	const inboxAxe = await inboxPage.evaluate(async () => {
 		const results = await window.axe.run(document, {
 			resultTypes: ['violations']
