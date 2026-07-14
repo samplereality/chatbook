@@ -1059,7 +1059,8 @@ Object.assign(Story.prototype, {
 				this.noteThreadMessage(
 					threadId,
 					this.previewText(html),
-					opts.instant || viewingIt
+					opts.instant || viewingIt,
+					speaker
 				);
 			}
 			else if (this.multiThread) {
@@ -4457,8 +4458,17 @@ Object.assign(Story.prototype, {
 					? bubbles[bubbles.length - 1]
 					: null;
 
+				// group threads name the sender, like a real phone
+
+				var sender = lastWrapper
+					? story.senderPrefix(
+							id,
+							lastWrapper.getAttribute('data-speaker')
+						)
+					: '';
+
 				preview.textContent = last
-					? last.textContent.trim().slice(0, 80)
+					? sender + last.textContent.trim().slice(0, 80)
 					: '';
 			}
 
@@ -4570,7 +4580,7 @@ Object.assign(Story.prototype, {
 		return probe.textContent.trim().replace(/\s+/g, ' ');
 	},
 
-	noteThreadMessage: function(threadId, previewText, instant) {
+	noteThreadMessage: function(threadId, previewText, instant, speaker) {
 		if (!this.multiThread) {
 			return;
 		}
@@ -4584,11 +4594,35 @@ Object.assign(Story.prototype, {
 			this.unread[threadId] = (this.unread[threadId] || 0) + 1;
 
 			if (this.config.threadNotifications && previewText) {
-				this.showThreadBanner(threadId, previewText);
+				// in a group thread the notification names the sender,
+				// like a real phone: "Family" up top, "Matt: …" below
+
+				var sender = this.senderPrefix(threadId, speaker);
+
+				this.showThreadBanner(threadId, sender + previewText);
 			}
 		}
 
 		this.renderInbox();
+	},
+
+	/**
+	 "Name: " to prefix a message preview with, when the sender is not
+	 who the thread is named for (a group chat); '' otherwise.
+	**/
+
+	senderPrefix: function(threadId, speaker) {
+		if (!speaker || speaker === 'you') {
+			return '';
+		}
+
+		var name = this.getSpeakerDisplayName(speaker);
+
+		if (!name || name === this.getThreadDisplayName(threadId)) {
+			return '';
+		}
+
+		return name + ': ';
 	},
 
 	/**
@@ -4628,7 +4662,8 @@ Object.assign(Story.prototype, {
 	 there — the conversation the player is in keeps its choices, and
 	 the other thread gains a message (and an unread badge). Available
 	 as the [deliver passage name] directive or story.deliver(name).
-	 Delivered passages are message-only; their links are not offered.
+	 A delivered passage with reply pills takes the story's pending
+	 choices with it: they show when the player opens its thread.
 	**/
 
 	deliver: function(idOrName, opts) {
@@ -4715,10 +4750,38 @@ Object.assign(Story.prototype, {
 			this.notifyTitle();
 		}
 
+		// a delivered passage that offers reply pills carries the
+		// story's pending choices with it: the next reply belongs to
+		// its thread, and the pills appear when the player opens that
+		// conversation. (A message-only delivery moves nothing.)
+
+		var links = passage.links || [];
+
+		if (links.length > 0) {
+			if (previousPassage && previousPassage.name) {
+				this.state.previousPassage = previousPassage.name;
+			}
+
+			window.passage = passage;
+			this._hotThread = threadId;
+			this.clearUserResponses();
+
+			if (!this.multiThread || this._viewedThread === threadId) {
+				this.showUserResponses();
+			}
+			else if (this._screen === 'thread') {
+				this.renderIdleComposer();
+			}
+			else {
+				this.updateHint();
+			}
+		}
+
 		this.noteThreadMessage(
 			threadId,
 			this.previewText(html),
-			opts.instant
+			opts.instant,
+			speaker
 		);
 
 		if (this._viewedThread === threadId) {
