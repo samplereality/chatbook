@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.6.2"
+  "format-version": "2.7.0"
 }
 ```
 
@@ -1146,11 +1146,8 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Version 2.6.2
+### Version 2.7
 
-- **The `instant` passage tag** — a tagged passage never shows typing dots, however it's reached: on its own it arrives immediately (a silent "and then?" pill paging through a montage), and combined with an explicit `showDelayed()` delay it becomes a silent wait — the pause happens, then the message just lands. See [Message chains and montages](#message-chains-and-montages).
-- **Delivered messages carry their reply pills.** A `[deliver]`ed passage with links used to discard them; now the story's pending choices travel with the message and appear when the player opens its thread — `[deliver]` can hand the story off to another conversation.
-- **Fixed: group messages are attributed to their sender.** A cross-speaker delivery (`speaker-matt` into `thread-family`) used to look like it came from the whole thread; the notification banner and inbox preview now read "Matt: …" under the thread's name, like a real phone.
 - **Group chats.** Declare `members:` on a thread and it becomes a group conversation: the member list under the header title, a clustered inbox avatar, and sender-named previews throughout. See [Multiple conversations](#multiple-conversations).
 - **Photos open in a lightbox.** Tap any chat image to view it fullscreen; tap again or press Esc to close. Keyboard- and screen-reader-accessible; opt out per image with `data-lightbox="off"`.
 - **Media previews.** Banners and inbox previews for media-only messages now read as their kind — `📷 Photo`, `🎤 Voice message`, `📍 Location` (wording via `config.previewLabels`) — instead of arriving blank.
@@ -1159,6 +1156,12 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - **The story check.** Debug mode now lints the whole story on load: broken pill targets, unresolved `[deliver]`/`showDelayed()` names, speakers without profiles, undeclared threads, and orphaned passages (opt out per passage with the `unlinked` tag). Each finding links to the passage. Also callable as `story.lint()`.
 - **Transcript export.** One debug-panel click flattens the visible conversation — every thread, chips and narration included — to a downloadable Markdown file; also `story.exportTranscript()`. Read your chat story as prose to proofread it.
 - **An [API index](#api-index)**: every public `story.*` method in one alphabetical table, each linked to its docs.
+
+### Version 2.6.2
+
+- **The `instant` passage tag** — a tagged passage never shows typing dots, however it's reached: on its own it arrives immediately (a silent "and then?" pill paging through a montage), and combined with an explicit `showDelayed()` delay it becomes a silent wait — the pause happens, then the message just lands. See [Message chains and montages](#message-chains-and-montages).
+- **Delivered messages carry their reply pills.** A `[deliver]`ed passage with links used to discard them; now the story's pending choices travel with the message and appear when the player opens its thread — `[deliver]` can hand the story off to another conversation.
+- **Fixed: group messages are attributed to their sender.** A cross-speaker delivery (`speaker-matt` into `thread-family`) used to look like it came from the whole thread; the notification banner and inbox preview now read "Matt: …" under the thread's name, like a real phone.
 
 ### Version 2.6.1
 
