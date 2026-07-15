@@ -749,6 +749,40 @@ a {
 	font-size: 1.2rem;
 }
 
+/* group chats: a cluster of the first two members */
+
+.inbox-avatar--group {
+	position: relative;
+	background: transparent;
+}
+
+.inbox-avatar-mini {
+	position: absolute;
+	width: 1.9rem;
+	height: 1.9rem;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: #fff;
+	background-color: hsl(var(--avatar-hue, 210), 45%, 55%);
+	background-size: cover;
+	background-position: center;
+}
+
+.inbox-avatar-mini:first-child {
+	top: 0;
+	left: 0;
+}
+
+.inbox-avatar-mini:last-child {
+	bottom: 0;
+	right: 0;
+	box-shadow: 0 0 0 2px var(--t-surface-default, #fff);
+}
+
 .inbox-body {
 	flex: 1;
 	min-width: 0;
@@ -1374,6 +1408,71 @@ a {
 	background: color-mix(in srgb, var(--t-muted) 15%, transparent);
 }
 
+/* a deleted message: the bubble stays, its content is a tombstone */
+
+.chat-passage.chat-passage--redacted {
+	background: transparent !important;
+	border: 1px dashed color-mix(in srgb, var(--t-muted) 60%, transparent);
+	color: var(--t-muted) !important;
+	font-style: italic;
+}
+
+/* fullscreen photo viewer */
+
+img[role="button"] {
+	cursor: zoom-in;
+}
+
+.photo-lightbox[hidden] {
+	display: none;
+}
+
+.photo-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 120;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4vmin;
+	background: rgba(8, 8, 12, 0.88);
+	cursor: zoom-out;
+	animation: lightbox-fade 0.18s ease-out;
+}
+
+.photo-lightbox-img {
+	max-width: 100%;
+	max-height: 100%;
+	border-radius: 0.5rem;
+	box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+}
+
+.photo-lightbox-close {
+	position: absolute;
+	top: 0.9rem;
+	right: 1.1rem;
+	appearance: none;
+	border: 0;
+	background: rgba(255, 255, 255, 0.12);
+	color: #fff;
+	font-size: 1.5rem;
+	line-height: 1;
+	padding: 0.35rem 0.7rem;
+	border-radius: 0.6rem;
+	cursor: pointer;
+}
+
+.photo-lightbox-close:hover,
+.photo-lightbox-close:focus-visible {
+	background: rgba(255, 255, 255, 0.25);
+}
+
+@keyframes lightbox-fade {
+	from {
+		opacity: 0;
+	}
+}
+
 .photo-picker-grid {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
@@ -1902,6 +2001,41 @@ button:focus-visible,
 #debug-passages .debug-current {
 	background: #283142;
 	color: #8ab4f8;
+}
+
+.debug-lint-list {
+	margin: 0;
+	padding-left: 1.1rem;
+	max-height: 12rem;
+	overflow-y: auto;
+}
+
+.debug-lint-list li {
+	margin: 0.25rem 0;
+}
+
+.debug-lint-list button {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: #8ab4f8;
+	font: inherit;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-color: #3c4043;
+	text-underline-offset: 2px;
+}
+
+.debug-lint-error {
+	color: #f28b82;
+}
+
+.debug-lint-warn {
+	color: #fdd663;
+}
+
+.debug-lint-note {
+	color: #9aa0a6;
 }
 
 @media (prefers-reduced-motion: reduce) {

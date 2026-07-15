@@ -248,6 +248,8 @@ var Story = function() {
 		readReceipts: true,
 		/* a speaker's reply automatically marks the last message read */
 		autoRead: true,
+		/* what a deleted message's tombstone says (localize here) */
+		redactedLabel: 'This message was deleted',
 		/* receipt wording (localize or restyle here) */
 		receiptLabels: {
 			delivered: 'Delivered',
@@ -271,6 +273,15 @@ var Story = function() {
 		/* in multi-conversation stories, announce messages that arrive
 		   in a thread the player isn't viewing with a tappable banner */
 		threadNotifications: true,
+		/* how long each notification banner stays up, in seconds */
+		bannerSeconds: 5,
+		/* what banners and inbox previews say for media-only messages
+		   (localize or restyle here) */
+		previewLabels: {
+			photo: '📷 Photo',
+			voice: '🎤 Voice message',
+			location: '📍 Location'
+		},
 		/* placeholder in the grayed-out composer shown when viewing a
 		   conversation the story isn't in right now (set '' to show
 		   nothing instead) */
@@ -389,6 +400,12 @@ var Story = function() {
 	/** Timestamp chips shown early, counted per passage id. **/
 	this._preShownStamps = null;
 
+	/** Thread banners waiting their turn; one shows at a time. **/
+	this._bannerQueue = [];
+
+	/** Redacted messages, so undo can restore their content. **/
+	this._redactionLog = [];
+
 	/** When the current choices appeared, for s.replySeconds. **/
 	this._responsesShownAt = null;
 
@@ -487,7 +504,9 @@ Object.assign(Story.prototype, {
 			inboxList: byId('inbox-list'),
 			inboxButton: byId('nav-link-inbox'),
 			timerText: byId('timer-announcement'),
-			asideLayer: byId('aside-layer')
+			asideLayer: byId('aside-layer'),
+			lightbox: byId('photo-lightbox'),
+			lightboxImg: byId('photo-lightbox-img')
 		};
 
 		this._responseTimer = null;
@@ -497,9 +516,18 @@ Object.assign(Story.prototype, {
 		// button does the same for keyboard and screen-reader users
 
 		this.dom.metaNotification.addEventListener('click', function(event) {
+			// after a dismissal, any queued banner takes the stage a
+			// beat later
+			var pumpSoon = function() {
+				window.setTimeout(function() {
+					story.pumpBanners();
+				}, 400);
+			};
+
 			if (event.target.closest('[data-notification-close]')) {
 				story.dom.metaNotification.hidden = true;
 				story._bannerThread = null;
+				pumpSoon();
 				return;
 			}
 
@@ -513,10 +541,46 @@ Object.assign(Story.prototype, {
 					story._bannerThread = null;
 					story.dom.metaNotification.hidden = true;
 					story.openThread(target);
+					pumpSoon();
 					return;
 				}
 
 				story.dom.metaNotification.hidden = true;
+			}
+		});
+
+		// any chat photo opens in a fullscreen lightbox; tap anywhere
+		// (or Escape) closes it
+
+		document.addEventListener('click', function(event) {
+			var img =
+				event.target.closest &&
+				event.target.closest('img[role="button"]');
+
+			if (img && story.dom.lightbox.hidden) {
+				story.openLightbox(img);
+			}
+		});
+
+		this.dom.lightbox.addEventListener('click', function() {
+			story.closeLightbox();
+		});
+
+		document.addEventListener('keydown', function(event) {
+			if (event.key === 'Escape' && !story.dom.lightbox.hidden) {
+				story.closeLightbox();
+				return;
+			}
+
+			if (
+				(event.key === 'Enter' || event.key === ' ') &&
+				event.target &&
+				event.target.matches &&
+				event.target.matches('img[role="button"]') &&
+				story.dom.lightbox.hidden
+			) {
+				event.preventDefault();
+				story.openLightbox(event.target);
 			}
 		});
 
@@ -1335,6 +1399,43 @@ Object.assign(Story.prototype, {
 		});
 		root.querySelectorAll('.chat-location').forEach(function(el) {
 			story.buildLocationCard(el);
+		});
+
+		// [tombstone] placeholders become deleted-message bubbles
+
+		root.querySelectorAll('.chat-tombstone').forEach(function(el) {
+			var label = el.getAttribute('data-label');
+			var bubble = el.closest('.chat-passage');
+
+			if (bubble) {
+				story.applyRedaction(
+					bubble,
+					label || story.config.redactedLabel
+				);
+			}
+			else {
+				el.textContent = label || story.config.redactedLabel;
+			}
+		});
+
+		// chat photos open in a lightbox on tap; make them reachable
+		// by keyboard too. Authors can opt an image out with
+		// data-lightbox="off".
+
+		root.querySelectorAll('img').forEach(function(img) {
+			if (
+				img.getAttribute('data-lightbox') === 'off' ||
+				img.closest('.chat-location')
+			) {
+				return;
+			}
+
+			img.setAttribute('tabindex', '0');
+			img.setAttribute('role', 'button');
+
+			if (!img.getAttribute('alt')) {
+				img.setAttribute('alt', 'Photo');
+			}
 		});
 	},
 
@@ -2278,6 +2379,42 @@ Object.assign(Story.prototype, {
 	 Opens the photo picker sheet with the given offers.
 	**/
 
+	/**
+	 Opens a chat photo fullscreen, dimming the page behind it. Focus
+	 moves to the close button and returns to the photo on close.
+	**/
+
+	openLightbox: function(img) {
+		this._lightboxReturnFocus = document.activeElement;
+		this.dom.lightboxImg.src = img.currentSrc || img.src;
+		this.dom.lightboxImg.alt = img.getAttribute('alt') || '';
+		this.dom.lightbox.hidden = false;
+
+		var close = this.dom.lightbox.querySelector('[data-lightbox-close]');
+
+		if (close) {
+			close.focus();
+		}
+	},
+
+	closeLightbox: function() {
+		if (this.dom.lightbox.hidden) {
+			return;
+		}
+
+		this.dom.lightbox.hidden = true;
+		this.dom.lightboxImg.removeAttribute('src');
+
+		if (
+			this._lightboxReturnFocus &&
+			typeof this._lightboxReturnFocus.focus === 'function'
+		) {
+			this._lightboxReturnFocus.focus({ preventScroll: true });
+		}
+
+		this._lightboxReturnFocus = null;
+	},
+
 	openPhotoPicker: function(offers) {
 		var story = this;
 		var grid = this.dom.pickerGrid;
@@ -2409,6 +2546,7 @@ Object.assign(Story.prototype, {
 			story.scrollChatIntoView();
 		});
 		bubble.appendChild(img);
+		this.buildRichContent(bubble);
 		bubbles.appendChild(bubble);
 		wrapper.appendChild(bubbles);
 		this.applyUserProfile(wrapper);
@@ -2685,6 +2823,78 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 Deletes a message the way real chat apps do: the bubble stays,
+	 its content becomes a tombstone — "This message was deleted".
+	 direction 'out' (the default) redacts the player's newest
+	 unredacted message in the current thread; 'in' the other side's.
+	 Calling it again deletes the one before, and so on. The node is
+	 modified in place, never removed (removals make screen readers
+	 re-announce the log), and the redaction participates in undo and
+	 save/restore. An optional label overrides config.redactedLabel
+	 for this one message. Returns whether a message was redacted.
+
+	 Triggered event: `redact`, detail { direction, story }.
+	**/
+
+	redactMessage: function(direction, label) {
+		var which = direction === 'in' ? 'in' : 'out';
+		var selector =
+			'.chat-passage-wrapper' +
+			(which === 'in'
+				? ':not([data-speaker="you"])'
+				: '[data-speaker="you"]');
+		var candidates = [];
+
+		this.hotLog()
+			.querySelectorAll(selector + ' .chat-passage')
+			.forEach(function(bubble) {
+				if (!bubble.classList.contains('chat-passage--redacted')) {
+					candidates.push(bubble);
+				}
+			});
+
+		var bubble = candidates[candidates.length - 1];
+
+		if (!bubble) {
+			return false;
+		}
+
+		this._redactionLog.push({
+			bubble: bubble,
+			html: bubble.innerHTML,
+			className: bubble.className
+		});
+
+		this.applyRedaction(bubble, label || this.config.redactedLabel);
+		this.timeline.push({
+			t: 'x',
+			which: which,
+			l: label || undefined
+		});
+		dispatch('redact', { direction: which, story: this });
+
+		if (this.multiThread) {
+			this.renderInbox();
+		}
+
+		this.persist();
+		return true;
+	},
+
+	/**
+	 Turns a message bubble into a deleted-message tombstone in place.
+	 Used by redactMessage() and by the [tombstone] directive.
+	**/
+
+	applyRedaction: function(bubble, label) {
+		bubble.classList.remove('chat-passage--media');
+		bubble.classList.remove('chat-passage--voice');
+		bubble.classList.remove('chat-passage--location');
+		bubble.classList.add('chat-passage--redacted');
+		bubble.textContent = label;
+	},
+
+	/**
 	 Puts a tapback badge on a message wrapper. Used by react() (which
 	 also records it for undo) and by seeded reactions (which don't —
 	 they're history, not moves).
@@ -2799,6 +3009,7 @@ Object.assign(Story.prototype, {
 		this._currentNodes = [];
 		this.checkpoints = [];
 		this._reactionLog = [];
+		this._redactionLog = [];
 		this.dom.undo.hidden = true;
 
 		if (this.multiThread) {
@@ -3242,7 +3453,19 @@ Object.assign(Story.prototype, {
 	hideMeta: function() {
 		this.dom.metaOverlay.hidden = true;
 		this.dom.metaNotification.hidden = true;
+		this._bannerThread = null;
 		this.updateInboxButton();
+
+		// banners still waiting in the queue return once the new
+		// content has settled
+
+		if (this._bannerQueue.length) {
+			var story = this;
+
+			window.setTimeout(function() {
+				story.pumpBanners();
+			}, 600);
+		}
 	},
 
 	/**
@@ -3578,7 +3801,8 @@ Object.assign(Story.prototype, {
 			links: window.passage ? window.passage.links.slice() : [],
 			lastReceipt: lastReceipt,
 			meta: meta,
-			reactionLogLength: this._reactionLog.length
+			reactionLogLength: this._reactionLog.length,
+			redactionLogLength: this._redactionLog.length
 		});
 
 		this.dom.undo.hidden = !this.config.undoButton;
@@ -3611,6 +3835,7 @@ Object.assign(Story.prototype, {
 		this.clearAsides();
 		this.clearUserResponses();
 		this._preShownStamps = null;
+		this._bannerQueue = [];
 
 		// everything since the checkpoint is discarded
 
@@ -3638,6 +3863,17 @@ Object.assign(Story.prototype, {
 					reactedWrapper.classList.remove('has-reaction');
 				}
 			}
+		}
+
+		// un-delete messages redacted since the checkpoint
+
+		while (
+			this._redactionLog.length > (checkpoint.redactionLogLength || 0)
+		) {
+			var redaction = this._redactionLog.pop();
+
+			redaction.bubble.innerHTML = redaction.html;
+			redaction.bubble.className = redaction.className;
 		}
 
 		if (this.multiThread && checkpoint.logCounts) {
@@ -3863,7 +4099,7 @@ Object.assign(Story.prototype, {
 
 				match[2].split(';').forEach(function(part) {
 					var kv = part.match(
-						/^\s*(name|avatar|color|hidden|archived)\s*:\s*(.+?)\s*$/
+						/^\s*(name|avatar|color|hidden|archived|members)\s*:\s*(.+?)\s*$/
 					);
 
 					if (kv) {
@@ -3873,6 +4109,17 @@ Object.assign(Story.prototype, {
 						profile.name = part.trim();
 					}
 				});
+
+				// members makes a thread a group chat: speaker ids,
+				// comma-separated. They appear under the header title
+				// and as a clustered inbox avatar.
+
+				if (typeof profile.members === 'string') {
+					profile.members = profile.members
+						.split(',')
+						.map(function(id) { return id.trim(); })
+						.filter(function(id) { return id !== ''; });
+				}
 
 				// hidden threads stay out of the inbox until their
 				// first message arrives (or story.revealThread(id))
@@ -4320,7 +4567,7 @@ Object.assign(Story.prototype, {
 			story.positionReactionBadge(wrapper);
 		});
 		this.updateInboxButton();
-		this.dom.title.textContent = this.getThreadDisplayName(threadId);
+		this.applyThreadHeader(threadId);
 		this.unread[threadId] = 0;
 		this.renderInbox();
 
@@ -4372,9 +4619,48 @@ Object.assign(Story.prototype, {
 		this.dom.inbox.hidden = false;
 		this.updateInboxButton();
 		document.body.classList.add('screen-inbox');
+		this.clearThreadSubtitle();
 		this.dom.title.textContent = this.name;
 		this.renderInbox();
 		this.dom.panel.scrollTop = 0;
+	},
+
+	/**
+	 Sets the header for a thread screen: the contact's name, and — in
+	 a group chat (a thread with declared members) — who's in it,
+	 where the subtitle usually sits.
+	**/
+
+	applyThreadHeader: function(threadId) {
+		var story = this;
+		var members = this.getThreadProfile(threadId).members || [];
+
+		if (members.length) {
+			this.dom.subtitle.textContent = members
+				.map(function(id) {
+					return story.getSpeakerDisplayName(id);
+				})
+				.join(', ');
+			this.dom.author.textContent = '';
+			this._threadSubtitle = true;
+		}
+		else {
+			this.clearThreadSubtitle();
+		}
+
+		this.dom.title.textContent = this.getThreadDisplayName(threadId);
+	},
+
+	/**
+	 Restores the identity subtitle after a group-chat screen replaced
+	 it with the member list.
+	**/
+
+	clearThreadSubtitle: function() {
+		if (this._threadSubtitle) {
+			this._threadSubtitle = false;
+			this.applyHeader();
+		}
 	},
 
 	/**
@@ -4408,7 +4694,41 @@ Object.assign(Story.prototype, {
 			avatar.setAttribute('aria-hidden', 'true');
 			avatar.style.setProperty('--avatar-hue', story.speakerHue(id));
 
-			if (profile.avatar) {
+			if (profile.members && profile.members.length > 1) {
+				// a group chat gets a cluster of its first two members
+
+				avatar.classList.add('inbox-avatar--group');
+
+				profile.members.slice(0, 2).forEach(function(memberId, i) {
+					var mini = document.createElement('div');
+					var member = story.getSpeakerProfile(memberId);
+
+					mini.className = 'inbox-avatar-mini';
+					mini.style.setProperty(
+						'--avatar-hue',
+						story.speakerHue(memberId)
+					);
+
+					if (member.avatar) {
+						mini.classList.add('chat-avatar--img');
+						mini.style.backgroundImage =
+							'url("' + member.avatar + '")';
+					}
+					else {
+						if (member.color) {
+							mini.style.backgroundColor = member.color;
+						}
+
+						mini.textContent = story
+							.getSpeakerDisplayName(memberId)
+							.charAt(0)
+							.toUpperCase();
+					}
+
+					avatar.appendChild(mini);
+				});
+			}
+			else if (profile.avatar) {
 				avatar.classList.add('chat-avatar--img');
 				avatar.style.backgroundImage = 'url("' + profile.avatar + '")';
 			}
@@ -4468,7 +4788,7 @@ Object.assign(Story.prototype, {
 					: '';
 
 				preview.textContent = last
-					? sender + last.textContent.trim().slice(0, 80)
+					? sender + story.messagePreview(last).slice(0, 80)
 					: '';
 			}
 
@@ -4577,7 +4897,43 @@ Object.assign(Story.prototype, {
 				el.remove();
 			});
 
-		return probe.textContent.trim().replace(/\s+/g, ' ');
+		return this.messagePreview(probe);
+	},
+
+	/**
+	 A human preview of a message element (or probe): its text, or a
+	 media placeholder — "📷 Photo" — when it has none. Voice memos and
+	 location cards always use their placeholder (their rendered
+	 players contain incidental text, like a duration label). Labels
+	 via config.previewLabels.
+	**/
+
+	messagePreview: function(root) {
+		var labels = this.config.previewLabels;
+
+		if (root.querySelector('.chat-voice')) {
+			return labels.voice;
+		}
+
+		if (root.querySelector('.chat-location')) {
+			return labels.location;
+		}
+
+		if (root.querySelector('.chat-tombstone')) {
+			return this.config.redactedLabel;
+		}
+
+		var text = root.textContent.trim().replace(/\s+/g, ' ');
+
+		if (text) {
+			return text;
+		}
+
+		if (root.querySelector('img, video')) {
+			return labels.photo;
+		}
+
+		return '';
 	},
 
 	noteThreadMessage: function(threadId, previewText, instant, speaker) {
@@ -4618,7 +4974,20 @@ Object.assign(Story.prototype, {
 
 		var name = this.getSpeakerDisplayName(speaker);
 
-		if (!name || name === this.getThreadDisplayName(threadId)) {
+		if (!name) {
+			return '';
+		}
+
+		// group chats always name the sender; elsewhere only when the
+		// sender is not who the thread is named for
+
+		var members = this.getThreadProfile(threadId).members;
+
+		if (members && members.length) {
+			return name + ': ';
+		}
+
+		if (name === this.getThreadDisplayName(threadId)) {
 			return '';
 		}
 
@@ -4631,8 +5000,6 @@ Object.assign(Story.prototype, {
 	**/
 
 	showThreadBanner: function(threadId, previewText) {
-		var story = this;
-
 		// real notifications cut long messages off — so does this one
 
 		var preview = previewText.trim().replace(/\s+/g, ' ');
@@ -4641,20 +5008,74 @@ Object.assign(Story.prototype, {
 			preview = preview.slice(0, 89).replace(/\s+\S*$/, '') + '…';
 		}
 
+		// a newer message from the SAME thread updates the banner (or
+		// its queued entry) in place; banners for other threads wait
+		// their turn instead of overwriting the one on screen
+
+		if (this._bannerThread === threadId) {
+			this.dom.metaNotificationBody.textContent = preview;
+			this.armBannerTimer(threadId);
+			return;
+		}
+
+		if (!this.dom.metaNotification.hidden) {
+			var queued = this._bannerQueue.filter(function(entry) {
+				return entry.threadId === threadId;
+			})[0];
+
+			if (queued) {
+				queued.preview = preview;
+			}
+			else {
+				this._bannerQueue.push({
+					threadId: threadId,
+					preview: preview
+				});
+			}
+
+			return;
+		}
+
+		this.displayThreadBanner(threadId, preview);
+	},
+
+	displayThreadBanner: function(threadId, preview) {
 		this.dom.metaNotificationLabel.textContent =
 			this.getThreadDisplayName(threadId);
 		this.dom.metaNotificationBody.textContent = preview;
 		this.dom.metaNotification.classList.add('meta-notification--thread');
 		this.dom.metaNotification.hidden = false;
 		this._bannerThread = threadId;
+		this.armBannerTimer(threadId);
+	},
+
+	armBannerTimer: function(threadId) {
+		var story = this;
 
 		window.clearTimeout(this._bannerTimer);
 		this._bannerTimer = window.setTimeout(function() {
 			if (story._bannerThread === threadId) {
 				story.dom.metaNotification.hidden = true;
 				story._bannerThread = null;
+				story.pumpBanners();
 			}
-		}, 5000);
+		}, this.config.bannerSeconds * 1000);
+	},
+
+	/**
+	 Shows the next waiting thread banner, if the banner slot is free.
+	**/
+
+	pumpBanners: function() {
+		if (!this.dom.metaNotification.hidden) {
+			return;
+		}
+
+		var next = this._bannerQueue.shift();
+
+		if (next) {
+			this.displayThreadBanner(next.threadId, next.preview);
+		}
 	},
 
 	/**
@@ -5280,11 +5701,13 @@ Object.assign(Story.prototype, {
 			this.clearAsides();
 			this.clearUserResponses();
 			this._preShownStamps = null;
+			this._bannerQueue = [];
 			this.state = {};
 			this.timeline = [];
 			this.history = [];
 			this.checkpoints = [];
 			this._reactionLog = [];
+			this._redactionLog = [];
 
 			if (this.multiThread) {
 				var storyReset = this;
@@ -5365,6 +5788,10 @@ Object.assign(Story.prototype, {
 				else if (entry.t === 'r') {
 					story.state.lastReaction = entry.emoji;
 					story.react(entry.emoji, 'in');
+				}
+				else if (entry.t === 'x') {
+					// redactMessage re-records its own timeline entry
+					story.redactMessage(entry.which, entry.l);
 				}
 				else if (entry.t === 'd') {
 					var delivered = story.passage(entry.id);
@@ -5490,6 +5917,7 @@ Object.assign(Story.prototype, {
 		this.clearAsides();
 		this.clearUserResponses();
 		this._preShownStamps = null;
+		this._bannerQueue = [];
 		this._currentNodes = [];
 
 		var story = this;
@@ -5506,6 +5934,7 @@ Object.assign(Story.prototype, {
 		this.timeline = [];
 		this.checkpoints = [];
 		this._reactionLog = [];
+		this._redactionLog = [];
 		this.dom.undo.hidden = true;
 
 		this.show(idOrName);
@@ -5536,6 +5965,269 @@ Object.assign(Story.prototype, {
 	 Twine's Test button / `tweego -t` (options="debug"), a ?debug URL
 	 switch, story.config.debug = true, or calling this directly.
 	**/
+
+	/**
+	 A static story check: broken pill targets, unresolved [deliver]
+	 and show()/showDelayed() names, speakers without a StorySpeakers
+	 profile, thread tags never declared in StoryThreads, and passages
+	 nothing points to. Returns an array of findings:
+	   { level: 'error' | 'warn' | 'note', message, passage }
+	 Dynamic names (anything containing template syntax) are skipped —
+	 the linter reads source, it never runs it.
+	**/
+
+	lint: function() {
+		var story = this;
+		var findings = [];
+		var isSpecial = function(p) {
+			return (
+				p.name.indexOf('Story') === 0 ||
+				p.tags.indexOf('script') > -1 ||
+				p.tags.indexOf('stylesheet') > -1
+			);
+		};
+		var content = this.passages.filter(function(p) {
+			return p && !isSpecial(p);
+		});
+
+		// pill targets, mirroring the link parser: display->target,
+		// a single-bar display|target, and the shorthand form where a
+		// trailing (send: …) comes off the target
+
+		var linkTargets = function(source) {
+			var targets = [];
+			var re = /\[\[(.*?)\]\]/g;
+			var match;
+
+			while ((match = re.exec(source))) {
+				var inner = match[1];
+				var target = inner;
+				var arrow = inner.lastIndexOf('->');
+
+				if (arrow > -1) {
+					target = inner.slice(arrow + 2);
+				}
+				else {
+					var bar = /(^|[^|])\|(?!\|)/.exec(inner);
+
+					if (bar) {
+						target = inner.slice(bar.index + bar[1].length + 1);
+					}
+					else {
+						var send = /\(send:[^)]*\)\s*$/i.exec(inner);
+
+						if (send) {
+							target = inner.slice(0, send.index);
+						}
+					}
+				}
+
+				targets.push(target.trim());
+			}
+
+			return targets;
+		};
+
+		var reachable = {};
+		var refs = {}; // passage name -> outbound names
+
+		content.forEach(function(p) {
+			var out = linkTargets(p.source);
+			var re = /\[deliver[ \t]+([^\]]+)\]/g;
+			var match;
+
+			while ((match = re.exec(p.source))) {
+				out.push(match[1].trim());
+			}
+
+			// names passed to the API from templates count as links
+			// for both existence and reachability
+
+			var call = /\b(?:show|showDelayed|deliver|debugJump)\(\s*(['"])([^'"]+)\1/g;
+
+			while ((match = call.exec(p.source))) {
+				out.push(match[2]);
+			}
+
+			refs[p.name] = out;
+
+			out.forEach(function(name) {
+				if (name.indexOf('<%') > -1 || name === '') {
+					return;
+				}
+
+				if (!story.passage(name)) {
+					findings.push({
+						level: 'error',
+						message: 'links to missing passage "' + name + '"',
+						passage: p.name
+					});
+				}
+			});
+		});
+
+		// speakers without a profile (only once authors opt into
+		// StorySpeakers) and threads never declared in StoryThreads
+
+		var flaggedSpeakers = {};
+		var flaggedThreads = {};
+
+		content.forEach(function(p) {
+			p.tags.forEach(function(tag) {
+				if (
+					tag.indexOf('speaker-') === 0 &&
+					story.passage('StorySpeakers')
+				) {
+					var speaker = tag.slice('speaker-'.length);
+
+					if (
+						speaker !== 'you' &&
+						!story.speakers[speaker] &&
+						!flaggedSpeakers[speaker]
+					) {
+						flaggedSpeakers[speaker] = true;
+						findings.push({
+							level: 'warn',
+							message:
+								'speaker "' + speaker +
+								'" has no StorySpeakers profile',
+							passage: p.name
+						});
+					}
+				}
+
+				if (tag.indexOf('thread-') === 0 && story.multiThread) {
+					var thread = tag.slice('thread-'.length);
+
+					if (
+						story.threadOrder.indexOf(thread) === -1 &&
+						!flaggedThreads[thread]
+					) {
+						flaggedThreads[thread] = true;
+						findings.push({
+							level: 'warn',
+							message:
+								'thread "' + thread +
+								'" is not declared in StoryThreads',
+							passage: p.name
+						});
+					}
+				}
+			});
+		});
+
+		// reachability: walk out from the start passage; seeds are
+		// reachable by definition (they render at story start)
+
+		var start = this.passage(this.startPassage);
+		var queue = start ? [start.name] : [];
+
+		// seeds render at story start, and `unlinked`-tagged passages
+		// are declared reachable by dynamic means — both are roots
+
+		content.forEach(function(p) {
+			if (
+				p.tags.indexOf('seed') > -1 ||
+				p.tags.indexOf('unlinked') > -1
+			) {
+				queue.push(p.name);
+			}
+		});
+
+		while (queue.length) {
+			var name = queue.pop();
+
+			if (reachable[name]) {
+				continue;
+			}
+
+			reachable[name] = true;
+			(refs[name] || []).forEach(function(next) {
+				if (story.passage(next) && !reachable[next]) {
+					queue.push(next);
+				}
+			});
+		}
+
+		// deliberately unlinked passages (reached by dynamic names the
+		// linter can't see) opt out with the `unlinked` tag
+
+		content.forEach(function(p) {
+			if (!reachable[p.name] && p.tags.indexOf('unlinked') === -1) {
+				findings.push({
+					level: 'note',
+					message: 'nothing links to "' + p.name + '"',
+					passage: p.name
+				});
+			}
+		});
+
+		return findings;
+	},
+
+	/**
+	 Flattens the visible transcript to Markdown — every thread, every
+	 message, chips and narration included. Reads the DOM (what the
+	 player actually saw), so it never re-runs template side effects.
+	**/
+
+	exportTranscript: function() {
+		var story = this;
+		var lines = ['# ' + (this.name || 'Transcript'), ''];
+
+		var renderLog = function(log) {
+			Array.prototype.forEach.call(log.children, function(node) {
+				if (!node.classList) {
+					return;
+				}
+
+				if (node.classList.contains('chat-timestamp')) {
+					lines.push('*— ' + node.textContent.trim() + ' —*', '');
+				}
+				else if (node.classList.contains('chat-system')) {
+					lines.push('*' + node.textContent.trim() + '*', '');
+				}
+				else if (node.classList.contains('meta-passage')) {
+					lines.push('> ' + node.textContent.trim(), '');
+				}
+				else if (node.classList.contains('chat-passage-wrapper')) {
+					var speaker = node.getAttribute('data-speaker');
+					var name =
+						!speaker || speaker === 'you'
+							? 'You'
+							: story.getSpeakerDisplayName(speaker);
+
+					node.querySelectorAll('.chat-passage').forEach(
+						function(bubble) {
+							var text = story.messagePreview(bubble);
+
+							if (text) {
+								lines.push('**' + name + ':** ' + text, '');
+							}
+						}
+					);
+				}
+			});
+		};
+
+		if (this.multiThread) {
+			this.threadOrder.forEach(function(threadId) {
+				var log = story._threadLogs[threadId];
+
+				if (!log || log.children.length === 0) {
+					return;
+				}
+
+				lines.push('## ' + story.getThreadDisplayName(threadId), '');
+				renderLog(log);
+			});
+		}
+		else {
+			renderLog(this.dom.history);
+		}
+
+		return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+	},
 
 	enableDebug: function() {
 		if (document.getElementById('debug-toggle')) {
@@ -5568,6 +6260,7 @@ Object.assign(Story.prototype, {
 			'<div class="debug-actions">' +
 			'<button type="button" id="debug-undo">↩ undo</button>' +
 			'<button type="button" id="debug-save">save to URL</button>' +
+			'<button type="button" id="debug-export">transcript</button>' +
 			'<button type="button" id="debug-restart">restart</button>' +
 			'</div>' +
 			'<details open><summary>Variables</summary>' +
@@ -5587,6 +6280,9 @@ Object.assign(Story.prototype, {
 			'<input type="search" id="debug-filter" placeholder="filter by name or tag…" aria-label="Filter passages">' +
 			'<ul id="debug-passages"></ul>' +
 			'</details>' +
+			'<details><summary id="debug-lint-summary">Story check</summary>' +
+			'<div id="debug-lint"></div>' +
+			'</details>' +
 			'<details><summary>Memory (survives restart)</summary>' +
 			'<table id="debug-memory" class="debug-table"></table>' +
 			'<button type="button" id="debug-forget">forget all</button>' +
@@ -5600,7 +6296,64 @@ Object.assign(Story.prototype, {
 		var filter = panel.querySelector('#debug-filter');
 		var evalOut = panel.querySelector('#debug-eval-out');
 		var memoryTable = panel.querySelector('#debug-memory');
+		var lintBox = panel.querySelector('#debug-lint');
+		var lintSummary = panel.querySelector('#debug-lint-summary');
 		var OPEN_KEY = 'subtext-debug-open-' + this.ifid;
+
+		// the story check reads source, not state — run it once
+
+		var renderLint = function() {
+			var findings = story.lint();
+			var problems = findings.filter(function(f) {
+				return f.level !== 'note';
+			}).length;
+
+			lintSummary.textContent =
+				'Story check' +
+				(findings.length ? ' (' + findings.length + ')' : '');
+
+			if (problems > 0) {
+				lintSummary.parentElement.open = true;
+			}
+
+			lintBox.textContent = '';
+
+			if (findings.length === 0) {
+				lintBox.textContent = '✓ no problems found';
+				return;
+			}
+
+			var list = document.createElement('ul');
+
+			list.className = 'debug-lint-list';
+			findings.forEach(function(f) {
+				var item = document.createElement('li');
+				var level = document.createElement('strong');
+
+				level.textContent = f.level;
+				level.className = 'debug-lint-' + f.level;
+				item.appendChild(level);
+				item.appendChild(
+					document.createTextNode(' ' + f.message + ' ')
+				);
+
+				if (f.passage && story.passage(f.passage)) {
+					var jump = document.createElement('button');
+
+					jump.type = 'button';
+					jump.textContent = 'in “' + f.passage + '”';
+					jump.addEventListener('click', function() {
+						story.debugJump(f.passage);
+					});
+					item.appendChild(jump);
+				}
+
+				list.appendChild(item);
+			});
+			lintBox.appendChild(list);
+		};
+
+		renderLint();
 
 		var brief = function(value) {
 			var text;
@@ -5791,6 +6544,18 @@ Object.assign(Story.prototype, {
 		panel.querySelector('#debug-save').addEventListener('click', function() {
 			story.save();
 			evalOut.textContent = 'progress saved to the URL — bookmark it';
+		});
+		panel.querySelector('#debug-export').addEventListener('click', function() {
+			var blob = new Blob([story.exportTranscript()], {
+				type: 'text/markdown'
+			});
+			var link = document.createElement('a');
+
+			link.href = URL.createObjectURL(blob);
+			link.download = (story.name || 'story') + ' transcript.md';
+			link.click();
+			URL.revokeObjectURL(link.href);
+			evalOut.textContent = 'transcript downloaded';
 		});
 		panel.querySelector('#debug-eval').addEventListener('submit', function(event) {
 			event.preventDefault();

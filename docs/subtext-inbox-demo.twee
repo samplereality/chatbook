@@ -2,7 +2,7 @@
 {
   "ifid": "7A2E9C41-5B83-4D26-9F0A-8E1C4B7D3A55",
   "format": "Subtext",
-  "format-version": "2.6.2"
+  "format-version": "2.7.0"
 }
 
 :: StoryTitle
@@ -22,12 +22,22 @@ story.config.hintFadeAfter = 3;
 :: StoryThreads
 sam: Sam
 mom: Mom
+family: The Fam; members: mom, matt
 unknown: Unknown Number; color: #52525e; hidden: true
 pizza: Pizza Palace; color: #b3541e; archived: true
 
 
 :: pizza-old [thread-pizza speaker-pizza seed]
 Your order is ready for pickup! Rate your experience?
+
+:: family-old-0 [thread-family speaker-matt seed]
+[tombstone]
+
+:: family-old-1 [thread-family speaker-mom seed]
+Someone bring chairs on Sunday.
+
+:: family-old-2 [thread-family speaker-matt seed]
+not me, I'm bringing the dip
 
 :: mom-old-1 [thread-mom speaker-mom seed]
 Did you eat today? You never answer me.
@@ -42,6 +52,7 @@ yes mom. going to bed, talk tomorrow ❤️
 :: StorySpeakers
 sam: Sam; color: #148f77
 mom: Mom; color: #8e44ad
+matt: Matt; color: #2e86c1
 unknown: Unknown; color: #3a3a44
 pizza: Pizza Palace; color: #b3541e
 
@@ -133,7 +144,7 @@ THE VAN OUTSIDE — a Subtext inbox demo. Restart to play the other branches.
 
 [[start over?->Start]]
 
-:: mom-crossover [thread-mom speaker-sam]
+:: mom-crossover [thread-mom speaker-sam unlinked]
 mom's phone died — it's sam. don't tell her about the van, she'll worry
 
 [[too late, she knows->crossover-reply]]

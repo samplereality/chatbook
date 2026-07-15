@@ -1230,6 +1230,105 @@ async function run() {
 	);
 	await chainPage.close();
 
+	console.log('photo lightbox');
+
+	const lightbox = await page.evaluate(() => {
+		const name = Object.keys(window.story.gallery)[0];
+
+		window.story.showPhotoBubble(name);
+
+		const imgs = document.querySelectorAll(
+			'.chat-passage--media img[role="button"]'
+		);
+		const img = imgs[imgs.length - 1];
+
+		if (!img) {
+			return { focusable: false };
+		}
+
+		img.click();
+
+		return {
+			focusable: img.getAttribute('tabindex') === '0',
+			open: !document.getElementById('photo-lightbox').hidden,
+			src: document.getElementById('photo-lightbox-img').src === img.src
+		};
+	});
+
+	check(
+		'a chat photo is keyboard-focusable and opens the lightbox',
+		lightbox.focusable && lightbox.open && lightbox.src
+	);
+	await page.keyboard.press('Escape');
+	check(
+		'Escape closes the lightbox',
+		await page.evaluate(
+			() => document.getElementById('photo-lightbox').hidden
+		)
+	);
+
+	console.log('deleted messages');
+
+	// redactMessage tombstones in place — the node is never removed,
+	// so the role="log" MutationObserver guard stays quiet
+	const redacted = await page.evaluate(() => {
+		window.story.showUserBubble('you did NOT just say that');
+		window.story.pushCheckpoint();
+		window.story.redactMessage('out');
+
+		const bubbles = document.querySelectorAll(
+			'.chat-passage[data-speaker="you"]'
+		);
+		const last = bubbles[bubbles.length - 1];
+
+		return {
+			tombstoned:
+				last.classList.contains('chat-passage--redacted') &&
+				last.textContent === 'This message was deleted',
+			logged: window.story._redactionLog.length > 0
+		};
+	});
+
+	check(
+		'redactMessage tombstones the player message in place',
+		redacted.tombstoned && redacted.logged
+	);
+
+	check(
+		'undo restores a deleted message',
+		await page.evaluate(() => {
+			window.story.undo();
+
+			const bubbles = document.querySelectorAll(
+				'.chat-passage[data-speaker="you"]'
+			);
+			const last = bubbles[bubbles.length - 1];
+
+			return (
+				!last.classList.contains('chat-passage--redacted') &&
+				last.textContent.indexOf('you did NOT just say that') > -1
+			);
+		})
+	);
+
+	check(
+		'a deleted message stays deleted through save/restore',
+		await page.evaluate(() => {
+			window.story.redactMessage('out', 'You deleted this message');
+			window.story.restore(window.story.saveHash());
+
+			const bubbles = document.querySelectorAll(
+				'.chat-passage[data-speaker="you"]'
+			);
+			const last = bubbles[bubbles.length - 1];
+
+			return (
+				last.classList.contains('chat-passage--redacted') &&
+				last.textContent === 'You deleted this message'
+			);
+		})
+	);
+
 	console.log('debug mode');
 
 	const debugPage = await browser.newPage({
@@ -1352,6 +1451,65 @@ async function run() {
 	);
 	fs.unlinkSync(shiftedTwee);
 	execFileSync('node', [path.join(__dirname, 'build-demo.js')]); // restore
+	await debugPage.reload(); // back onto the unshifted build
+	await debugPage.waitForSelector('.user-response', { timeout: 15000 });
+
+	// the story check: the demo lints clean, and planted problems
+	// (bad targets, unprofiled speaker, an orphan) are all caught
+	check(
+		'story check: the demo lints clean',
+		await debugPage.evaluate(() => window.story.lint().length === 0)
+	);
+	check(
+		'story check catches broken targets, bad tags, and orphans',
+		await debugPage.evaluate(() => {
+			window.story.passages.push(
+				new window.Passage(
+					9999,
+					'lint-bait',
+					['speaker-nobody'],
+					'[[nowhere]]\n[deliver ghost]\n' +
+						'<% story.showDelayed("phantom") %>'
+				)
+			);
+
+			const findings = window.story.lint();
+
+			window.story.passages.pop();
+
+			const msgs = findings.map((f) => f.message).join('; ');
+
+			return (
+				msgs.indexOf('missing passage "nowhere"') > -1 &&
+				msgs.indexOf('missing passage "ghost"') > -1 &&
+				msgs.indexOf('missing passage "phantom"') > -1 &&
+				msgs.indexOf(
+					'"nobody" has no StorySpeakers profile'
+				) > -1 &&
+				msgs.indexOf('nothing links to "lint-bait"') > -1
+			);
+		})
+	);
+	check(
+		'debug panel reports the story check result',
+		(await debugPage.textContent('#debug-lint')).indexOf(
+			'no problems'
+		) > -1
+	);
+
+	// the transcript export flattens what's on screen to Markdown
+	check(
+		'transcript export flattens the conversation to Markdown',
+		await debugPage.evaluate(() => {
+			const text = window.story.exportTranscript();
+
+			return (
+				text.indexOf('# Subtext Demo') === 0 &&
+				text.indexOf(':**') > -1
+			);
+		})
+	);
+
 	await debugPage.evaluate(() => window.story.restart && localStorage.clear());
 	await debugPage.close();
 
@@ -1534,7 +1692,7 @@ async function run() {
 	);
 	check(
 		'one log per declared thread',
-		(await inboxPage.locator('.thread-log').count()) === 4
+		(await inboxPage.locator('.thread-log').count()) === 5
 	);
 
 	// seed-tagged passages are already in Mom's thread — old and read
@@ -1619,7 +1777,7 @@ async function run() {
 	await inboxPage.waitForSelector('#inbox:not([hidden])');
 	check(
 		'a hidden thread stays out of the inbox until it speaks',
-		(await inboxPage.locator('.inbox-row:not(.inbox-row--trash)').count()) === 2 &&
+		(await inboxPage.locator('.inbox-row:not(.inbox-row--trash)').count()) === 3 &&
 		(await inboxPage.locator('.inbox-row:has-text("Unknown")').count()) === 0
 	);
 	check(
@@ -1923,6 +2081,146 @@ async function run() {
 				mom.querySelector('.inbox-preview').textContent.indexOf(
 					'Sam: ok. stay away'
 				) === 0
+			);
+		})
+	);
+
+	// media-only messages get placeholders in previews and banners
+	check(
+		'media-only messages get preview placeholders',
+		await inboxPage.evaluate(
+			() =>
+				window.story.previewText('<p><img src="x.png"></p>') ===
+					'📷 Photo' &&
+				window.story.previewText(
+					'<div class="chat-voice" data-src="v.mp3"></div>'
+				) === '🎤 Voice message' &&
+				window.story.previewText(
+					'<div class="chat-location" data-lat="1" data-lon="2"></div>'
+				) === '📍 Location' &&
+				window.story.previewText('<p>a caption</p>') === 'a caption'
+		)
+	);
+
+	// banners queue: same-thread updates collapse, other threads wait
+	const bannerQueue = await inboxPage.evaluate(
+		() =>
+			new Promise((resolve) => {
+				document.getElementById('meta-notification').hidden = true;
+				window.story._bannerThread = null;
+				window.story._bannerQueue = [];
+				window.story.config.bannerSeconds = 0.5;
+
+				window.story.showThreadBanner('mom', 'first message');
+				window.story.showThreadBanner('mom', 'first, updated');
+				window.story.showThreadBanner('pizza', 'second message');
+
+				const first = {
+					label: document.getElementById('meta-notification-label')
+						.textContent,
+					body: document.getElementById('meta-notification-body')
+						.textContent,
+					queued: window.story._bannerQueue.length
+				};
+
+				setTimeout(() => {
+					resolve({
+						first,
+						secondLabel: document.getElementById(
+							'meta-notification-label'
+						).textContent,
+						secondBody: document.getElementById(
+							'meta-notification-body'
+						).textContent
+					});
+				}, 800);
+			})
+	);
+
+	check(
+		'banners queue instead of overwriting (same thread collapses)',
+		bannerQueue.first.label === 'Mom' &&
+			bannerQueue.first.body === 'first, updated' &&
+			bannerQueue.first.queued === 1 &&
+			bannerQueue.secondLabel === 'Pizza Palace' &&
+			bannerQueue.secondBody === 'second message'
+	);
+
+	// group chats: member subtitle, cluster avatar, sender previews
+	await inboxPage.evaluate(() => window.story.openThread('family'));
+	check(
+		'a group thread lists its members under the title',
+		(await inboxPage.textContent('#ptitle')) === 'The Fam' &&
+			(await inboxPage.textContent('#psubtitle')) === 'Mom, Matt'
+	);
+
+	await inboxPage.evaluate(() => window.story.openInbox());
+	check(
+		'leaving a group chat restores the identity subtitle',
+		(await inboxPage.textContent('#psubtitle')) ===
+			'a Subtext inbox demo'
+	);
+
+	check(
+		'group inbox row: cluster avatar and sender-prefixed preview',
+		await inboxPage.evaluate(() => {
+			const rows = Array.from(document.querySelectorAll('.inbox-row'));
+			const fam = rows.find(
+				(row) =>
+					row.querySelector('.inbox-name').textContent === 'The Fam'
+			);
+
+			return (
+				fam.querySelectorAll('.inbox-avatar-mini').length === 2 &&
+				fam
+					.querySelector('.inbox-preview')
+					.textContent.indexOf('Matt: not me') === 0
+			);
+		})
+	);
+
+	check(
+		'a seeded [tombstone] renders as a deleted message',
+		await inboxPage.evaluate(() => {
+			const log = document.querySelector(
+				'.thread-log[data-thread="family"]'
+			);
+			const bubble = log.querySelector('.chat-passage--redacted');
+
+			return (
+				!!bubble &&
+				bubble.textContent === 'This message was deleted' &&
+				bubble
+					.closest('.chat-passage-wrapper')
+					.getAttribute('data-speaker') === 'matt'
+			);
+		})
+	);
+
+	check(
+		'[tombstone] parses bare and with a custom label',
+		await inboxPage.evaluate(() => {
+			const bare = window.Passage.render('[tombstone]');
+			const custom = window.Passage.render(
+				'[tombstone You deleted this message]'
+			);
+
+			return (
+				bare.indexOf('chat-tombstone') > -1 &&
+				custom.indexOf('You deleted this message') > -1
+			);
+		})
+	);
+
+	check(
+		'transcript export sections multi-thread stories by conversation',
+		await inboxPage.evaluate(() => {
+			const text = window.story.exportTranscript();
+
+			return (
+				text.indexOf('## Sam') > -1 &&
+				text.indexOf('## Mom') > -1 &&
+				text.indexOf('**Mom:**') > -1
 			);
 		})
 	);

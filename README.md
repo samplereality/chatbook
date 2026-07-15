@@ -12,9 +12,9 @@ Subtext is a successor to [Trialogue](https://github.com/phivk/trialogue) by Phi
 
 **Getting started** — [Add Subtext to Twine](#add-subtext-to-twine) · [Your first passage](#your-first-passage) · [Using Tweego](#using-tweego) · [Building from source](#building-from-source)
 
-**Reference** — [Special passages](#special-passages) · [Passage tags](#passage-tags) · [The design language](#the-design-language) · [Story state](#story-state) · [Configuration](#configuration) · [Utility functions](#utility-functions) · [Events](#events)
+**Reference** — [Special passages](#special-passages) · [Passage tags](#passage-tags) · [The design language](#the-design-language) · [Story state](#story-state) · [Configuration](#configuration) · [Utility functions](#utility-functions) · [API index](#api-index) · [Events](#events)
 
-**Messages** — [Photo messages](#photo-messages) · [Voice memos](#voice-memos) · [Location sharing](#location-sharing) · [Timestamps](#timestamps) · [System messages](#system-messages) · [Read receipts](#read-receipts) · [Reactions](#reactions) · [Message chains and montages](#message-chains-and-montages)
+**Messages** — [Photo messages](#photo-messages) · [Voice memos](#voice-memos) · [Location sharing](#location-sharing) · [Timestamps](#timestamps) · [System messages](#system-messages) · [Deleted messages](#deleted-messages) · [Read receipts](#read-receipts) · [Reactions](#reactions) · [Message chains and montages](#message-chains-and-montages)
 
 **Narration** — [Narration modes](#narration) · [Asides](#asides)
 
@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.6.2"
+  "format-version": "2.7.0"
 }
 ```
 
@@ -156,6 +156,7 @@ And a handful of passage *tags* change how a passage behaves. Tags combine freel
 | `clear` | Wipes the visible thread before rendering | [Clearing the thread](#clearing-the-thread) |
 | `timestamp` | Renders the passage's text as timestamp chips | [Timestamps](#timestamps) |
 | `read` / `unread` | Forces or suppresses the read receipt | [Read receipts](#read-receipts) |
+| `unlinked` | Marks a deliberately unlinked passage so the debug story check stays quiet | [Debug mode](#debug-mode) |
 | `failed` | Marks the player's last message *Not Delivered* | [Read receipts](#read-receipts) |
 | `End` (or `end`) | Appends `StoryColophon` when shown | [Special passages](#special-passages) |
 
@@ -163,7 +164,7 @@ And a handful of passage *tags* change how a passage behaves. Tags combine freel
 
 Everything you write in a passage falls into one of three shapes, each with one job:
 
-1. **`[directive …]` on its own line** puts something *inside* a message — `[timestamp …]`, `[system …]`, `[voice …]`, `[location …]`, `[react …]`, `[deliver …]`. Square brackets, lowercase, one line.
+1. **`[directive …]` on its own line** puts something *inside* a message — `[timestamp …]`, `[system …]`, `[voice …]`, `[location …]`, `[react …]`, `[deliver …]`, `[tombstone]`. Square brackets, lowercase, one line.
 2. **`prefix:` at the start of a link label** makes a special *kind* of reply — `photo:`, `location:`, `react:`, `input:`, `timeout:`. (Bare `photo`, `location`, and `input` work as shorthand for the argument-less form.)
 3. **`(send: …)` at the end of a link label** *modifies* an ordinary reply — what it sends, or whether it sends anything.
 
@@ -228,6 +229,8 @@ you've sent <%= s.sentPhotos.length %> photo(s)
 ```
 
 `s.lastPhoto` is the most recently sent image name; `s.sentPhotos` is an array of every image sent. Both participate in undo and save/restore like any other state, and a `photosent` event fires on every send (see [Events](#events)). Related config: `story.config.photoButtonLabel`, `story.config.photoPickerTitle`, and `story.config.preloadImages` (warms the browser cache for gallery images at startup, on by default).
+
+**Viewing photos.** Every image in the chat — sent, received, or seeded — opens fullscreen in a lightbox on tap (dimmed backdrop; tap anywhere or press <kbd>Esc</kbd> to close). Images are keyboard-focusable, and an image's `alt` text labels it for screen readers. Opt an image out with `data-lightbox="off"` in its markup.
 
 ### Voice memos
 
@@ -300,6 +303,36 @@ I've said too much already
 ```
 
 `[system …]` renders as a centered, italic event chip (style it via `.chat-system`). It differs from a timestamp in two deliberate ways: a chip *after* the message lands below it — a departure follows the last word — and it is **never shown early** while the reply is still typing; events land in sequence, only clocks may front-run. Works in [seeds](#multiple-conversations) too, for history like *"Missed call"*.
+
+### Deleted messages
+
+Real chat apps don't erase a deleted message — they leave a scar: *"This message was deleted."* Subtext does the same, in both directions:
+
+**Deleting live.** `story.redactMessage()` turns the newest message into a tombstone in place — the bubble stays, its content becomes the italic ghost. `redactMessage('out')` (the default) targets the player's newest message in the current thread, `redactMessage('in')` the other side's; calling it again deletes the one before, and so on. Wire it to a reply pill and the player can do the deleting:
+
+```
+:: regret [speaker-you]
+[[Delete message (send:)->they noticed]]
+[[leave it->brazen it out]]
+
+:: they noticed [speaker-sam]
+<% story.redactMessage('out') %>um. I saw that before you deleted it
+
+[[you saw nothing->denial]]
+```
+
+Tapping **Delete message** posts nothing, the player's last text collapses into the tombstone, and Sam reacts — which is the point: a delete another character notices is a *scene*. A `redact` event fires, and deletions participate in undo and save/restore. The wording comes from `story.config.redactedLabel`; pass a one-off override as the second argument — `story.redactMessage('out', 'You deleted this message')`.
+
+**Seeding old deletions.** In pre-existing history (or anywhere else), the `[tombstone]` directive renders a message that was already deleted before the story began:
+
+```
+:: family-history [thread-family speaker-matt seed]
+[tombstone]
+```
+
+Bare `[tombstone]` uses the configured wording; `[tombstone You deleted this message]` overrides it. A tombstone among the old texts is a question the player can't ask anyone — use accordingly.
+
+(Why redaction instead of removal: the conversation is a screen-reader live region, and removing nodes from it makes assistive tech re-announce the log. The tombstone keeps the DOM stable and reads exactly like the real thing.)
 
 ### Read receipts
 
@@ -619,7 +652,16 @@ Three things move the story between threads:
 
 - **The player**, by opening the inbox (the ‹ chevron on the header's left) or tapping a notification banner, can read any thread at any time. The chevron itself is yours to stage: `story.config.inboxButton = false` starts the story feeling like a single conversation, and `<% story.showInboxButton() %>` in a later passage reveals that there was a whole inbox all along (`hideInboxButton()` reverses it). Only the thread holding the story's pending choices shows reply chips; a parked thread shows a grayed-out composer instead — *"Nothing to say right now"* — so the read-only state stays inside the fiction (wording via `story.config.threadIdleHint`; set `''` for none).
 
-The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them. Cross-thread banners cut long messages off with an ellipsis, the way real notifications do.
+The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them. Banners behave like real notifications: long messages are cut off with an ellipsis, media-only messages read as their kind (`📷 Photo`, `🎤 Voice message`, `📍 Location` — wording via `config.previewLabels`), several arrivals **queue** and show one at a time (`config.bannerSeconds` each; a newer message from the same thread updates its banner in place), and inbox previews follow the same rules.
+
+**Group chats.** Give a thread `members:` — a comma-separated list of speaker ids — and it becomes a group conversation:
+
+```
+:: StoryThreads
+family: The Fam; members: mom, matt
+```
+
+The members appear under the thread's name in the header, the inbox row shows a cluster of the first two members' avatars, and every notification banner and inbox preview names its sender ("Matt: …"), the way a real phone attributes group messages. Inside the thread nothing special is required — any `speaker-*` can text into any thread, and each message carries its own name and color.
 
 **Hidden threads.** Declare a thread `hidden: true` and it stays out of the inbox until its first message arrives — no spoiling the Unknown Number that won't text until act two:
 
@@ -745,6 +787,8 @@ A `🐛 debug` button appears in the corner; it opens a panel that stays open un
 - **Variables** — a live table of everything in `s`, refreshed as passages show, plus a console line that runs any JavaScript (`s.suspicion = 9`, `story.markRead()`, …).
 - **Timeline** — every message and passage so far; **tap any passage to rewind to that moment**. The conversation rebuilds up to that point by replaying it, so template side effects re-run exactly as they did the first time.
 - **Jump to passage** — a filterable list (by name or tag, current passage highlighted); click one to fast-forward straight to it, no need to play through fifty passages to reach the scene you just wrote. A jump is a *clean teleport*: the transcript resets to the target while `s` is kept, so jumps never pile up in the log or the autosave. To go backwards, use the timeline.
+- **Story check** — a static lint of the whole story: pill links to passages that don't exist, `[deliver]` and `showDelayed()`/`show()` names that don't resolve, `speaker-*` tags with no `StorySpeakers` profile, `thread-*` tags never declared in `StoryThreads`, and passages nothing points to. Each finding links to the offending passage. It reads source without running it, so dynamic names (`<% %>`) are skipped rather than guessed at; a passage you reach only through dynamic means can opt out of the orphan check with the `unlinked` tag. Also callable as `story.lint()` — it returns the findings as an array.
+- **Transcript** — one click flattens the visible conversation (every thread, chips and narration included) to a Markdown file and downloads it. Reading a chat story as prose is a surprisingly good proofreading pass. Also callable as `story.exportTranscript()`, which returns the Markdown string.
 - **Memory** — what the story has `remember()`ed across playthroughs, with a forget-all button.
 
 **Your place survives rebuilds.** Debug mode turns on autosave and — crucially — saves your position by passage *name* rather than id. So with `tweego -w` watching your Twee files and a live-preview browser tab reloading on every rebuild, the story resumes exactly where you were, even after the rebuild renumbers every passage. Combined with jump, this makes the edit-preview loop instant: save the file, the tab reloads, you're still standing in the scene you're editing. (Restart, in the menu or the debug panel, clears the autosave when you *do* want a clean run.)
@@ -780,6 +824,7 @@ story.config.autosave = true;
 | `readReceipts` | `true` | Show Delivered/Read under the player's last message |
 | `autoRead` | `true` | A speaker's reply marks the last message read |
 | `receiptLabels` | `{ delivered, read, failed }` | Receipt wording — localize or restyle |
+| `redactedLabel` | `'This message was deleted'` | What a deleted message's tombstone says |
 
 **Narration**
 
@@ -818,6 +863,8 @@ story.config.autosave = true;
 | `sounds` | `false` | Subtle synthesized send/receive sounds (needs a user gesture) |
 | `titleNotifications` | `true` | Show `(2) Story Name` in the tab title while hidden |
 | `threadNotifications` | `true` | Announce cross-thread messages with a banner |
+| `bannerSeconds` | `5` | How long each notification banner stays up; queued banners follow in order |
+| `previewLabels` | `{ photo, voice, location }` | What banners and inbox previews say for media-only messages (`📷 Photo`, …) |
 | `threadIdleHint` | `'Nothing to say right now'` | Placeholder in the disabled composer on parked threads (`''` for none) |
 | `trashLabel` | `'Trash'` | Label on the inbox's archived-conversations section |
 | `themeToggle` | `true` | Show the light/dark toggle in the header |
@@ -862,6 +909,36 @@ getStyles('extra.css')                           // load stylesheet(s); returns 
 
 And `hasVisited()`/`visited()` pair naturally with thread clearing — history persists across a `clear`, so characters can reference scenes the player saw in a flashback.
 
+### API index
+
+Every public `story.*` method, alphabetically — each links to the section that documents it:
+
+| Method | What it does | Section |
+| --- | --- | --- |
+| `archiveThread(id)` / `restoreThread(id)` | Move a conversation into or out of the Trash | [Multiple conversations](#multiple-conversations) |
+| `choose(target, sent, label)` | Make a reply from code, exactly as if a pill were tapped | [Recipes](#a-delete-thread-reply-pill) |
+| `clearThread(id)` | Wipe a conversation's visible messages (history survives) | [Clearing the thread](#clearing-the-thread) |
+| `debugJump(name)` | Teleport to a passage on a clean transcript | [Debug mode](#debug-mode) |
+| `debugRewind(count)` | Replay the timeline up to an entry | [Debug mode](#debug-mode) |
+| `deliver(name)` | Drop a passage into its thread without moving the story | [Multiple conversations](#multiple-conversations) |
+| `enableDebug()` | Turn on the debug panel from code | [Debug mode](#debug-mode) |
+| `exportTranscript()` | The visible conversation, flattened to Markdown | [Debug mode](#debug-mode) |
+| `lint()` | The story check's findings, as an array | [Debug mode](#debug-mode) |
+| `markRead()` / `markUnread()` / `markFailed()` | Set the receipt on the player's last message | [Read receipts](#read-receipts) |
+| `openInbox()` / `openThread(id)` | Switch between the inbox and a conversation | [Multiple conversations](#multiple-conversations) |
+| `passage(idOrName)` | Fetch a passage object | [The story and passage globals](#the-story-and-passage-globals) |
+| `react(emoji, direction)` | Land a tapback on the last message | [Reactions](#reactions) |
+| `redactMessage(direction, label)` | Delete a message: the bubble stays, a tombstone replaces it | [Deleted messages](#deleted-messages) |
+| `remember(key, value)` / `recall(key, fallback)` / `forget(key)` | Cross-playthrough memory (survives restart) | [Recipes](#remember-across-playthroughs) |
+| `revealThread(id)` | Bring a hidden thread into the inbox | [Multiple conversations](#multiple-conversations) |
+| `save()` / `restore(hash)` | Write progress to the URL / replay a save | [Saving](#saving) |
+| `setHeader(title, subtitle)` | Repurpose the header mid-story | [Page chrome and menus](#page-chrome-and-menus) |
+| `setMenu(html, title)` | Fill (and retitle) the menu dialog | [Page chrome and menus](#page-chrome-and-menus) |
+| `setRestartDialog(html)` | Reword the restart confirmation | [Page chrome and menus](#page-chrome-and-menus) |
+| `show(name)` | Show a passage immediately | [Message chains and montages](#message-chains-and-montages) |
+| `showDelayed(name, delay)` | Show a passage after a delay (0 = instantly, no dots) | [Message chains and montages](#message-chains-and-montages) |
+| `showInboxButton()` / `hideInboxButton()` | Stage the inbox chevron's reveal | [Multiple conversations](#multiple-conversations) |
+
 ## Events
 
 Every story event is a plain DOM `CustomEvent` dispatched on `window`; read its payload from `event.detail`.
@@ -882,6 +959,7 @@ window.addEventListener('photosent', function (e) {
 | `photosent` | the player sends a photo | `{ name, target, story }` |
 | `locationshared` | the player shares real coordinates | `{ lat, lon, story }` |
 | `reaction` | the player reacts with a tapback | `{ emoji, story }` |
+| `redact` | a message is deleted via `redactMessage` | `{ direction, story }` |
 | `timeout` | a response timer expires | `{ target, text, story }` |
 | `textinput` | the player sends free-text input | `{ text, target, story }` |
 | `threadarchived` | a conversation moves to the Trash | `{ thread, story }` |
@@ -1039,6 +1117,14 @@ you made it. maybe we both did.
 
 `story.forget(key)` drops one value; `story.forget()` wipes the story's whole memory. (Restart clears the ordinary save but deliberately leaves memory intact — call `forget()` yourself if you want a true reset.)
 
+The natural home for the running tally is `StoryColophon` — it renders (templates included) at the bottom of every `End`-tagged passage, so one snippet covers every ending:
+
+```
+:: StoryColophon
+<% var seen = story.recall('endings', []); %>
+You've found <%= seen.length %> of 3 endings.<% if (seen.length < 3) { %> Restart to look for the others.<% } %>
+```
+
 ## Accessibility
 
 - **Screen readers:** the conversation is a `role="log"` live region, and messages are never moved or re-inserted in the DOM, so each one is announced exactly once. The typing indicator announces *"Sam is typing"* (localize via `story.config.typingLabel`), narration overlays and notifications are polite status regions, restoring a save replays silently instead of flooding the reader, and reactions, receipts, voice memos, and location cards all carry proper labels.
@@ -1059,6 +1145,17 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.7
+
+- **Group chats.** Declare `members:` on a thread and it becomes a group conversation: the member list under the header title, a clustered inbox avatar, and sender-named previews throughout. See [Multiple conversations](#multiple-conversations).
+- **Photos open in a lightbox.** Tap any chat image to view it fullscreen; tap again or press Esc to close. Keyboard- and screen-reader-accessible; opt out per image with `data-lightbox="off"`.
+- **Media previews.** Banners and inbox previews for media-only messages now read as their kind — `📷 Photo`, `🎤 Voice message`, `📍 Location` (wording via `config.previewLabels`) — instead of arriving blank.
+- **Banners queue.** Several messages arriving at once announce themselves one banner at a time (`config.bannerSeconds` each) instead of overwriting each other; a newer message from the same thread updates its banner in place.
+- **Deleted messages.** `story.redactMessage()` deletes a message the way real chat apps do — the bubble stays, its content becomes a *"This message was deleted"* tombstone (wording via `config.redactedLabel`; `'out'`/`'in'` picks whose message). The `[tombstone]` directive seeds a message that was already deleted before the story began. Deletions fire a `redact` event and participate in undo and save/restore. See [Deleted messages](#deleted-messages).
+- **The story check.** Debug mode now lints the whole story on load: broken pill targets, unresolved `[deliver]`/`showDelayed()` names, speakers without profiles, undeclared threads, and orphaned passages (opt out per passage with the `unlinked` tag). Each finding links to the passage. Also callable as `story.lint()`.
+- **Transcript export.** One debug-panel click flattens the visible conversation — every thread, chips and narration included — to a downloadable Markdown file; also `story.exportTranscript()`. Read your chat story as prose to proofread it.
+- **An [API index](#api-index)**: every public `story.*` method in one alphabetical table, each linked to its docs.
 
 ### Version 2.6.2
 
