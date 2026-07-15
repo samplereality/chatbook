@@ -229,6 +229,8 @@ you've sent <%= s.sentPhotos.length %> photo(s)
 
 `s.lastPhoto` is the most recently sent image name; `s.sentPhotos` is an array of every image sent. Both participate in undo and save/restore like any other state, and a `photosent` event fires on every send (see [Events](#events)). Related config: `story.config.photoButtonLabel`, `story.config.photoPickerTitle`, and `story.config.preloadImages` (warms the browser cache for gallery images at startup, on by default).
 
+**Viewing photos.** Every image in the chat — sent, received, or seeded — opens fullscreen in a lightbox on tap (dimmed backdrop; tap anywhere or press <kbd>Esc</kbd> to close). Images are keyboard-focusable, and an image's `alt` text labels it for screen readers. Opt an image out with `data-lightbox="off"` in its markup.
+
 ### Voice memos
 
 Put a `[voice …]` line in any passage to send an audio message with a proper voice-note player — play/pause button, waveform, and duration read from the file:
@@ -619,7 +621,16 @@ Three things move the story between threads:
 
 - **The player**, by opening the inbox (the ‹ chevron on the header's left) or tapping a notification banner, can read any thread at any time. The chevron itself is yours to stage: `story.config.inboxButton = false` starts the story feeling like a single conversation, and `<% story.showInboxButton() %>` in a later passage reveals that there was a whole inbox all along (`hideInboxButton()` reverses it). Only the thread holding the story's pending choices shows reply chips; a parked thread shows a grayed-out composer instead — *"Nothing to say right now"* — so the read-only state stays inside the fiction (wording via `story.config.threadIdleHint`; set `''` for none).
 
-The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them. Cross-thread banners cut long messages off with an ellipsis, the way real notifications do.
+The **inbox** lists every thread with its avatar, a preview of the last message, a live "typing…" indicator, and an unread count, sorted by most recent activity. Unread badges accumulate on conversations the player isn't looking at and clear when they open them. Banners behave like real notifications: long messages are cut off with an ellipsis, media-only messages read as their kind (`📷 Photo`, `🎤 Voice message`, `📍 Location` — wording via `config.previewLabels`), several arrivals **queue** and show one at a time (`config.bannerSeconds` each; a newer message from the same thread updates its banner in place), and inbox previews follow the same rules.
+
+**Group chats.** Give a thread `members:` — a comma-separated list of speaker ids — and it becomes a group conversation:
+
+```
+:: StoryThreads
+family: The Fam; members: mom, matt
+```
+
+The members appear under the thread's name in the header, the inbox row shows a cluster of the first two members' avatars, and every notification banner and inbox preview names its sender ("Matt: …"), the way a real phone attributes group messages. Inside the thread nothing special is required — any `speaker-*` can text into any thread, and each message carries its own name and color.
 
 **Hidden threads.** Declare a thread `hidden: true` and it stays out of the inbox until its first message arrives — no spoiling the Unknown Number that won't text until act two:
 
@@ -818,6 +829,8 @@ story.config.autosave = true;
 | `sounds` | `false` | Subtle synthesized send/receive sounds (needs a user gesture) |
 | `titleNotifications` | `true` | Show `(2) Story Name` in the tab title while hidden |
 | `threadNotifications` | `true` | Announce cross-thread messages with a banner |
+| `bannerSeconds` | `5` | How long each notification banner stays up; queued banners follow in order |
+| `previewLabels` | `{ photo, voice, location }` | What banners and inbox previews say for media-only messages (`📷 Photo`, …) |
 | `threadIdleHint` | `'Nothing to say right now'` | Placeholder in the disabled composer on parked threads (`''` for none) |
 | `trashLabel` | `'Trash'` | Label on the inbox's archived-conversations section |
 | `themeToggle` | `true` | Show the light/dark toggle in the header |
@@ -1065,6 +1078,10 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - **The `instant` passage tag** — a tagged passage never shows typing dots, however it's reached: on its own it arrives immediately (a silent "and then?" pill paging through a montage), and combined with an explicit `showDelayed()` delay it becomes a silent wait — the pause happens, then the message just lands. See [Message chains and montages](#message-chains-and-montages).
 - **Delivered messages carry their reply pills.** A `[deliver]`ed passage with links used to discard them; now the story's pending choices travel with the message and appear when the player opens its thread — `[deliver]` can hand the story off to another conversation.
 - **Fixed: group messages are attributed to their sender.** A cross-speaker delivery (`speaker-matt` into `thread-family`) used to look like it came from the whole thread; the notification banner and inbox preview now read "Matt: …" under the thread's name, like a real phone.
+- **Group chats.** Declare `members:` on a thread and it becomes a group conversation: the member list under the header title, a clustered inbox avatar, and sender-named previews throughout. See [Multiple conversations](#multiple-conversations).
+- **Photos open in a lightbox.** Tap any chat image to view it fullscreen; tap again or press Esc to close. Keyboard- and screen-reader-accessible; opt out per image with `data-lightbox="off"`.
+- **Media previews.** Banners and inbox previews for media-only messages now read as their kind — `📷 Photo`, `🎤 Voice message`, `📍 Location` (wording via `config.previewLabels`) — instead of arriving blank.
+- **Banners queue.** Several messages arriving at once announce themselves one banner at a time (`config.bannerSeconds` each) instead of overwriting each other; a newer message from the same thread updates its banner in place.
 
 ### Version 2.6.1
 

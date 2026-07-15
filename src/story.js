@@ -271,6 +271,15 @@ var Story = function() {
 		/* in multi-conversation stories, announce messages that arrive
 		   in a thread the player isn't viewing with a tappable banner */
 		threadNotifications: true,
+		/* how long each notification banner stays up, in seconds */
+		bannerSeconds: 5,
+		/* what banners and inbox previews say for media-only messages
+		   (localize or restyle here) */
+		previewLabels: {
+			photo: '📷 Photo',
+			voice: '🎤 Voice message',
+			location: '📍 Location'
+		},
 		/* placeholder in the grayed-out composer shown when viewing a
 		   conversation the story isn't in right now (set '' to show
 		   nothing instead) */
@@ -389,6 +398,9 @@ var Story = function() {
 	/** Timestamp chips shown early, counted per passage id. **/
 	this._preShownStamps = null;
 
+	/** Thread banners waiting their turn; one shows at a time. **/
+	this._bannerQueue = [];
+
 	/** When the current choices appeared, for s.replySeconds. **/
 	this._responsesShownAt = null;
 
@@ -487,7 +499,9 @@ Object.assign(Story.prototype, {
 			inboxList: byId('inbox-list'),
 			inboxButton: byId('nav-link-inbox'),
 			timerText: byId('timer-announcement'),
-			asideLayer: byId('aside-layer')
+			asideLayer: byId('aside-layer'),
+			lightbox: byId('photo-lightbox'),
+			lightboxImg: byId('photo-lightbox-img')
 		};
 
 		this._responseTimer = null;
@@ -497,9 +511,18 @@ Object.assign(Story.prototype, {
 		// button does the same for keyboard and screen-reader users
 
 		this.dom.metaNotification.addEventListener('click', function(event) {
+			// after a dismissal, any queued banner takes the stage a
+			// beat later
+			var pumpSoon = function() {
+				window.setTimeout(function() {
+					story.pumpBanners();
+				}, 400);
+			};
+
 			if (event.target.closest('[data-notification-close]')) {
 				story.dom.metaNotification.hidden = true;
 				story._bannerThread = null;
+				pumpSoon();
 				return;
 			}
 
@@ -513,10 +536,46 @@ Object.assign(Story.prototype, {
 					story._bannerThread = null;
 					story.dom.metaNotification.hidden = true;
 					story.openThread(target);
+					pumpSoon();
 					return;
 				}
 
 				story.dom.metaNotification.hidden = true;
+			}
+		});
+
+		// any chat photo opens in a fullscreen lightbox; tap anywhere
+		// (or Escape) closes it
+
+		document.addEventListener('click', function(event) {
+			var img =
+				event.target.closest &&
+				event.target.closest('img[role="button"]');
+
+			if (img && story.dom.lightbox.hidden) {
+				story.openLightbox(img);
+			}
+		});
+
+		this.dom.lightbox.addEventListener('click', function() {
+			story.closeLightbox();
+		});
+
+		document.addEventListener('keydown', function(event) {
+			if (event.key === 'Escape' && !story.dom.lightbox.hidden) {
+				story.closeLightbox();
+				return;
+			}
+
+			if (
+				(event.key === 'Enter' || event.key === ' ') &&
+				event.target &&
+				event.target.matches &&
+				event.target.matches('img[role="button"]') &&
+				story.dom.lightbox.hidden
+			) {
+				event.preventDefault();
+				story.openLightbox(event.target);
 			}
 		});
 
@@ -1335,6 +1394,26 @@ Object.assign(Story.prototype, {
 		});
 		root.querySelectorAll('.chat-location').forEach(function(el) {
 			story.buildLocationCard(el);
+		});
+
+		// chat photos open in a lightbox on tap; make them reachable
+		// by keyboard too. Authors can opt an image out with
+		// data-lightbox="off".
+
+		root.querySelectorAll('img').forEach(function(img) {
+			if (
+				img.getAttribute('data-lightbox') === 'off' ||
+				img.closest('.chat-location')
+			) {
+				return;
+			}
+
+			img.setAttribute('tabindex', '0');
+			img.setAttribute('role', 'button');
+
+			if (!img.getAttribute('alt')) {
+				img.setAttribute('alt', 'Photo');
+			}
 		});
 	},
 
@@ -2278,6 +2357,42 @@ Object.assign(Story.prototype, {
 	 Opens the photo picker sheet with the given offers.
 	**/
 
+	/**
+	 Opens a chat photo fullscreen, dimming the page behind it. Focus
+	 moves to the close button and returns to the photo on close.
+	**/
+
+	openLightbox: function(img) {
+		this._lightboxReturnFocus = document.activeElement;
+		this.dom.lightboxImg.src = img.currentSrc || img.src;
+		this.dom.lightboxImg.alt = img.getAttribute('alt') || '';
+		this.dom.lightbox.hidden = false;
+
+		var close = this.dom.lightbox.querySelector('[data-lightbox-close]');
+
+		if (close) {
+			close.focus();
+		}
+	},
+
+	closeLightbox: function() {
+		if (this.dom.lightbox.hidden) {
+			return;
+		}
+
+		this.dom.lightbox.hidden = true;
+		this.dom.lightboxImg.removeAttribute('src');
+
+		if (
+			this._lightboxReturnFocus &&
+			typeof this._lightboxReturnFocus.focus === 'function'
+		) {
+			this._lightboxReturnFocus.focus({ preventScroll: true });
+		}
+
+		this._lightboxReturnFocus = null;
+	},
+
 	openPhotoPicker: function(offers) {
 		var story = this;
 		var grid = this.dom.pickerGrid;
@@ -2409,6 +2524,7 @@ Object.assign(Story.prototype, {
 			story.scrollChatIntoView();
 		});
 		bubble.appendChild(img);
+		this.buildRichContent(bubble);
 		bubbles.appendChild(bubble);
 		wrapper.appendChild(bubbles);
 		this.applyUserProfile(wrapper);
@@ -3242,7 +3358,19 @@ Object.assign(Story.prototype, {
 	hideMeta: function() {
 		this.dom.metaOverlay.hidden = true;
 		this.dom.metaNotification.hidden = true;
+		this._bannerThread = null;
 		this.updateInboxButton();
+
+		// banners still waiting in the queue return once the new
+		// content has settled
+
+		if (this._bannerQueue.length) {
+			var story = this;
+
+			window.setTimeout(function() {
+				story.pumpBanners();
+			}, 600);
+		}
 	},
 
 	/**
@@ -3611,6 +3739,7 @@ Object.assign(Story.prototype, {
 		this.clearAsides();
 		this.clearUserResponses();
 		this._preShownStamps = null;
+		this._bannerQueue = [];
 
 		// everything since the checkpoint is discarded
 
@@ -3863,7 +3992,7 @@ Object.assign(Story.prototype, {
 
 				match[2].split(';').forEach(function(part) {
 					var kv = part.match(
-						/^\s*(name|avatar|color|hidden|archived)\s*:\s*(.+?)\s*$/
+						/^\s*(name|avatar|color|hidden|archived|members)\s*:\s*(.+?)\s*$/
 					);
 
 					if (kv) {
@@ -3873,6 +4002,17 @@ Object.assign(Story.prototype, {
 						profile.name = part.trim();
 					}
 				});
+
+				// members makes a thread a group chat: speaker ids,
+				// comma-separated. They appear under the header title
+				// and as a clustered inbox avatar.
+
+				if (typeof profile.members === 'string') {
+					profile.members = profile.members
+						.split(',')
+						.map(function(id) { return id.trim(); })
+						.filter(function(id) { return id !== ''; });
+				}
 
 				// hidden threads stay out of the inbox until their
 				// first message arrives (or story.revealThread(id))
@@ -4320,7 +4460,7 @@ Object.assign(Story.prototype, {
 			story.positionReactionBadge(wrapper);
 		});
 		this.updateInboxButton();
-		this.dom.title.textContent = this.getThreadDisplayName(threadId);
+		this.applyThreadHeader(threadId);
 		this.unread[threadId] = 0;
 		this.renderInbox();
 
@@ -4372,9 +4512,48 @@ Object.assign(Story.prototype, {
 		this.dom.inbox.hidden = false;
 		this.updateInboxButton();
 		document.body.classList.add('screen-inbox');
+		this.clearThreadSubtitle();
 		this.dom.title.textContent = this.name;
 		this.renderInbox();
 		this.dom.panel.scrollTop = 0;
+	},
+
+	/**
+	 Sets the header for a thread screen: the contact's name, and — in
+	 a group chat (a thread with declared members) — who's in it,
+	 where the subtitle usually sits.
+	**/
+
+	applyThreadHeader: function(threadId) {
+		var story = this;
+		var members = this.getThreadProfile(threadId).members || [];
+
+		if (members.length) {
+			this.dom.subtitle.textContent = members
+				.map(function(id) {
+					return story.getSpeakerDisplayName(id);
+				})
+				.join(', ');
+			this.dom.author.textContent = '';
+			this._threadSubtitle = true;
+		}
+		else {
+			this.clearThreadSubtitle();
+		}
+
+		this.dom.title.textContent = this.getThreadDisplayName(threadId);
+	},
+
+	/**
+	 Restores the identity subtitle after a group-chat screen replaced
+	 it with the member list.
+	**/
+
+	clearThreadSubtitle: function() {
+		if (this._threadSubtitle) {
+			this._threadSubtitle = false;
+			this.applyHeader();
+		}
 	},
 
 	/**
@@ -4408,7 +4587,41 @@ Object.assign(Story.prototype, {
 			avatar.setAttribute('aria-hidden', 'true');
 			avatar.style.setProperty('--avatar-hue', story.speakerHue(id));
 
-			if (profile.avatar) {
+			if (profile.members && profile.members.length > 1) {
+				// a group chat gets a cluster of its first two members
+
+				avatar.classList.add('inbox-avatar--group');
+
+				profile.members.slice(0, 2).forEach(function(memberId, i) {
+					var mini = document.createElement('div');
+					var member = story.getSpeakerProfile(memberId);
+
+					mini.className = 'inbox-avatar-mini';
+					mini.style.setProperty(
+						'--avatar-hue',
+						story.speakerHue(memberId)
+					);
+
+					if (member.avatar) {
+						mini.classList.add('chat-avatar--img');
+						mini.style.backgroundImage =
+							'url("' + member.avatar + '")';
+					}
+					else {
+						if (member.color) {
+							mini.style.backgroundColor = member.color;
+						}
+
+						mini.textContent = story
+							.getSpeakerDisplayName(memberId)
+							.charAt(0)
+							.toUpperCase();
+					}
+
+					avatar.appendChild(mini);
+				});
+			}
+			else if (profile.avatar) {
 				avatar.classList.add('chat-avatar--img');
 				avatar.style.backgroundImage = 'url("' + profile.avatar + '")';
 			}
@@ -4468,7 +4681,7 @@ Object.assign(Story.prototype, {
 					: '';
 
 				preview.textContent = last
-					? sender + last.textContent.trim().slice(0, 80)
+					? sender + story.messagePreview(last).slice(0, 80)
 					: '';
 			}
 
@@ -4577,7 +4790,39 @@ Object.assign(Story.prototype, {
 				el.remove();
 			});
 
-		return probe.textContent.trim().replace(/\s+/g, ' ');
+		return this.messagePreview(probe);
+	},
+
+	/**
+	 A human preview of a message element (or probe): its text, or a
+	 media placeholder — "📷 Photo" — when it has none. Voice memos and
+	 location cards always use their placeholder (their rendered
+	 players contain incidental text, like a duration label). Labels
+	 via config.previewLabels.
+	**/
+
+	messagePreview: function(root) {
+		var labels = this.config.previewLabels;
+
+		if (root.querySelector('.chat-voice')) {
+			return labels.voice;
+		}
+
+		if (root.querySelector('.chat-location')) {
+			return labels.location;
+		}
+
+		var text = root.textContent.trim().replace(/\s+/g, ' ');
+
+		if (text) {
+			return text;
+		}
+
+		if (root.querySelector('img, video')) {
+			return labels.photo;
+		}
+
+		return '';
 	},
 
 	noteThreadMessage: function(threadId, previewText, instant, speaker) {
@@ -4618,7 +4863,20 @@ Object.assign(Story.prototype, {
 
 		var name = this.getSpeakerDisplayName(speaker);
 
-		if (!name || name === this.getThreadDisplayName(threadId)) {
+		if (!name) {
+			return '';
+		}
+
+		// group chats always name the sender; elsewhere only when the
+		// sender is not who the thread is named for
+
+		var members = this.getThreadProfile(threadId).members;
+
+		if (members && members.length) {
+			return name + ': ';
+		}
+
+		if (name === this.getThreadDisplayName(threadId)) {
 			return '';
 		}
 
@@ -4631,8 +4889,6 @@ Object.assign(Story.prototype, {
 	**/
 
 	showThreadBanner: function(threadId, previewText) {
-		var story = this;
-
 		// real notifications cut long messages off — so does this one
 
 		var preview = previewText.trim().replace(/\s+/g, ' ');
@@ -4641,20 +4897,74 @@ Object.assign(Story.prototype, {
 			preview = preview.slice(0, 89).replace(/\s+\S*$/, '') + '…';
 		}
 
+		// a newer message from the SAME thread updates the banner (or
+		// its queued entry) in place; banners for other threads wait
+		// their turn instead of overwriting the one on screen
+
+		if (this._bannerThread === threadId) {
+			this.dom.metaNotificationBody.textContent = preview;
+			this.armBannerTimer(threadId);
+			return;
+		}
+
+		if (!this.dom.metaNotification.hidden) {
+			var queued = this._bannerQueue.filter(function(entry) {
+				return entry.threadId === threadId;
+			})[0];
+
+			if (queued) {
+				queued.preview = preview;
+			}
+			else {
+				this._bannerQueue.push({
+					threadId: threadId,
+					preview: preview
+				});
+			}
+
+			return;
+		}
+
+		this.displayThreadBanner(threadId, preview);
+	},
+
+	displayThreadBanner: function(threadId, preview) {
 		this.dom.metaNotificationLabel.textContent =
 			this.getThreadDisplayName(threadId);
 		this.dom.metaNotificationBody.textContent = preview;
 		this.dom.metaNotification.classList.add('meta-notification--thread');
 		this.dom.metaNotification.hidden = false;
 		this._bannerThread = threadId;
+		this.armBannerTimer(threadId);
+	},
+
+	armBannerTimer: function(threadId) {
+		var story = this;
 
 		window.clearTimeout(this._bannerTimer);
 		this._bannerTimer = window.setTimeout(function() {
 			if (story._bannerThread === threadId) {
 				story.dom.metaNotification.hidden = true;
 				story._bannerThread = null;
+				story.pumpBanners();
 			}
-		}, 5000);
+		}, this.config.bannerSeconds * 1000);
+	},
+
+	/**
+	 Shows the next waiting thread banner, if the banner slot is free.
+	**/
+
+	pumpBanners: function() {
+		if (!this.dom.metaNotification.hidden) {
+			return;
+		}
+
+		var next = this._bannerQueue.shift();
+
+		if (next) {
+			this.displayThreadBanner(next.threadId, next.preview);
+		}
 	},
 
 	/**
@@ -5280,6 +5590,7 @@ Object.assign(Story.prototype, {
 			this.clearAsides();
 			this.clearUserResponses();
 			this._preShownStamps = null;
+			this._bannerQueue = [];
 			this.state = {};
 			this.timeline = [];
 			this.history = [];
@@ -5490,6 +5801,7 @@ Object.assign(Story.prototype, {
 		this.clearAsides();
 		this.clearUserResponses();
 		this._preShownStamps = null;
+		this._bannerQueue = [];
 		this._currentNodes = [];
 
 		var story = this;
