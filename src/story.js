@@ -384,7 +384,6 @@ var Story = function() {
 
 	/* threads moved to the Trash (archived, readable, recoverable) */
 	this._threadArchived = {};
-	this._trashOpen = false;
 	this._seeding = false;
 
 	this._audioCtx = null;
@@ -392,6 +391,9 @@ var Story = function() {
 
 	/** Applied reactions, so undo can revert them. **/
 	this._reactionLog = [];
+
+	/** Which screen a viewed thread was opened from: inbox or trash. **/
+	this._threadOrigin = 'inbox';
 
 	/** Live margin asides, one per side. **/
 	this._asides = { left: null, right: null };
@@ -3981,6 +3983,9 @@ Object.assign(Story.prototype, {
 			if (checkpoint.screen === 'inbox') {
 				this.openInbox();
 			}
+			else if (checkpoint.screen === 'trash') {
+				this.openTrash();
+			}
 			else {
 				this.openThread(checkpoint.viewedThread || this._hotThread);
 			}
@@ -4339,7 +4344,18 @@ Object.assign(Story.prototype, {
 		});
 
 		this.dom.inboxButton.addEventListener('click', function() {
-			story.openInbox();
+			// the chevron goes back the way the player came: a thread
+			// opened from the Trash returns to the Trash
+
+			if (
+				story._screen === 'thread' &&
+				story._threadOrigin === 'trash'
+			) {
+				story.openTrash();
+			}
+			else {
+				story.openInbox();
+			}
 		});
 
 		document.body.classList.add('has-threads');
@@ -4546,7 +4562,7 @@ Object.assign(Story.prototype, {
 
 		this.dom.inboxButton.hidden = !(
 			this.multiThread &&
-			this._screen === 'thread' &&
+			(this._screen === 'thread' || this._screen === 'trash') &&
 			this.dom.metaOverlay.hidden &&
 			this.config.inboxButton
 		);
@@ -4586,6 +4602,12 @@ Object.assign(Story.prototype, {
 				this.dom.panel.scrollTop;
 			this._threadLogs[this._viewedThread].hidden = true;
 		}
+
+		// remember where the player came from, so the header chevron
+		// can take them back there (a Trash thread returns to the
+		// Trash)
+
+		this._threadOrigin = this._screen === 'trash' ? 'trash' : 'inbox';
 
 		this._screen = 'thread';
 		this._viewedThread = threadId;
@@ -4655,6 +4677,35 @@ Object.assign(Story.prototype, {
 		document.body.classList.add('screen-inbox');
 		this.clearThreadSubtitle();
 		this.dom.title.textContent = this.name;
+		this.renderInbox();
+		this.dom.panel.scrollTop = 0;
+	},
+
+	/**
+	 Opens the Trash: its own screen of archived conversations, still
+	 readable. The header chevron returns to the inbox, and a thread
+	 opened from here returns to the Trash.
+	**/
+
+	openTrash: function() {
+		if (!this.multiThread) {
+			return;
+		}
+
+		if (this._viewedThread && this._threadLogs[this._viewedThread]) {
+			this._scrollPositions[this._viewedThread] =
+				this.dom.panel.scrollTop;
+			this._threadLogs[this._viewedThread].hidden = true;
+		}
+
+		this._screen = 'trash';
+		this._viewedThread = null;
+		this.dom.typing.hidden = true;
+		this.dom.inbox.hidden = false;
+		this.updateInboxButton();
+		document.body.classList.add('screen-inbox');
+		this.clearThreadSubtitle();
+		this.dom.title.textContent = this.config.trashLabel;
 		this.renderInbox();
 		this.dom.panel.scrollTop = 0;
 	},
@@ -4866,13 +4917,29 @@ Object.assign(Story.prototype, {
 			return !(profile.hidden && !story._threadActivity[id]);
 		});
 
+		var trashed = visible.filter(function(id) {
+			return story._threadArchived[id];
+		});
+
+		// the Trash is its own screen; recovering its last thread
+		// bounces the player back to the inbox
+
+		if (this._screen === 'trash') {
+			if (trashed.length === 0) {
+				this.openInbox();
+				return;
+			}
+
+			trashed.forEach(function(id) { buildRow(id, true); });
+			return;
+		}
+
 		visible
 			.filter(function(id) { return !story._threadArchived[id]; })
 			.forEach(function(id) { buildRow(id, false); });
 
-		var trashed = visible.filter(function(id) {
-			return story._threadArchived[id];
-		});
+		// the inbox ends with a doorway to the Trash when there's
+		// anything in it
 
 		if (trashed.length > 0) {
 			var trashRow = document.createElement('li');
@@ -4880,10 +4947,6 @@ Object.assign(Story.prototype, {
 
 			trashButton.type = 'button';
 			trashButton.className = 'inbox-trash-toggle';
-			trashButton.setAttribute(
-				'aria-expanded',
-				String(this._trashOpen)
-			);
 			trashButton.innerHTML =
 				'<span class="inbox-trash-icon" aria-hidden="true">🗑</span>' +
 				'<span></span>' +
@@ -4892,18 +4955,10 @@ Object.assign(Story.prototype, {
 			trashButton.querySelector('.inbox-trash-count').textContent =
 				trashed.length;
 			trashButton.addEventListener('click', function() {
-				story._trashOpen = !story._trashOpen;
-				story.renderInbox();
+				story.openTrash();
 			});
 			trashRow.appendChild(trashButton);
 			this.dom.inboxList.appendChild(trashRow);
-
-			if (this._trashOpen) {
-				trashed.forEach(function(id) { buildRow(id, true); });
-			}
-		}
-		else {
-			this._trashOpen = false;
 		}
 	},
 
@@ -5910,6 +5965,9 @@ Object.assign(Story.prototype, {
 
 				if (ts.screen === 'inbox') {
 					this.openInbox();
+				}
+				else if (ts.screen === 'trash') {
+					this.openTrash();
 				}
 				else {
 					this.openThread(

@@ -1988,8 +1988,11 @@ async function run() {
 	);
 	await inboxPage.click('.inbox-trash-toggle');
 	check(
-		'the Trash opens to readable archived conversations',
-		(await inboxPage.locator('.inbox-row--trash:has-text("Pizza")').count()) === 1
+		'the Trash is its own screen, with readable conversations',
+		(await inboxPage.locator('.inbox-row--trash:has-text("Pizza")').count()) === 1 &&
+		(await inboxPage.textContent('#ptitle')) === 'Trash' &&
+		(await inboxPage.locator('.inbox-row:not(.inbox-row--trash)').count()) === 0 &&
+		(await inboxPage.locator('#nav-link-inbox:not([hidden])').count()) === 1
 	);
 	await inboxPage.click('.inbox-row--trash:has-text("Pizza")');
 	await inboxPage.waitForSelector('.thread-log[data-thread="pizza"]:not([hidden])');
@@ -1998,6 +2001,12 @@ async function run() {
 		(await inboxPage
 			.locator('.thread-log[data-thread="pizza"]')
 			.textContent()).indexOf('order is ready') > -1
+	);
+	await inboxPage.click('#nav-link-inbox');
+	check(
+		'the chevron returns a Trash-opened thread to the Trash',
+		(await inboxPage.textContent('#ptitle')) === 'Trash' &&
+		(await inboxPage.evaluate(() => window.story._screen)) === 'trash'
 	);
 	check(
 		'a message landing in an archived thread recovers it',
@@ -2012,8 +2021,13 @@ async function run() {
 			return inTrash && recovered;
 		})
 	);
-	await inboxPage.click('#nav-link-inbox');
+	// recovering the Trash's only thread bounced the player back to
+	// the inbox automatically (the re-archive then refills the Trash)
 	await inboxPage.waitForSelector('#inbox:not([hidden])');
+	check(
+		'recovering the last archived thread bounces back to the inbox',
+		(await inboxPage.evaluate(() => window.story._screen)) === 'inbox'
+	);
 	check(
 		'unread badge on the delivered thread',
 		(await inboxPage
