@@ -709,7 +709,7 @@ Did you eat today? You never answer me.
 
 Seeds follow passage order, survive save/restore, and stay put under undo (they're history, not moves). Note that seeding a hidden thread reveals it — old messages mean the contact isn't a surprise.
 
-**The Trash.** Conversations can be archived — out of the main inbox, never deleted. A **Trash** section appears at the bottom of the inbox; the player can open it and read everything inside. Declare a thread `archived: true` to start it there (old spam, dead group chats — inbox texture that rewards snoops), or move one mid-story:
+**The Trash.** Conversations can be archived — out of the main inbox, never deleted. A **Trash** row appears at the bottom of the inbox; tapping it opens the Trash as its own screen, where the player can read everything inside (the header chevron leads back — and a conversation opened from the Trash returns to the Trash, the way real phones do it; `story.openTrash()` opens it from code). Recovering the Trash's last conversation returns the player to the inbox. Declare a thread `archived: true` to start it there (old spam, dead group chats — inbox texture that rewards snoops), or move one mid-story:
 
 ```
 :: unknown-leaves [thread-unknown speaker-unknown]
@@ -931,7 +931,7 @@ Every public `story.*` method, alphabetically — each links to the section that
 | `exportTranscript()` | The visible conversation, flattened to Markdown | [Debug mode](#debug-mode) |
 | `lint()` | The story check's findings, as an array | [Debug mode](#debug-mode) |
 | `markRead()` / `markUnread()` / `markFailed()` | Set the receipt on the player's last message | [Read receipts](#read-receipts) |
-| `openInbox()` / `openThread(id)` | Switch between the inbox and a conversation | [Multiple conversations](#multiple-conversations) |
+| `openInbox()` / `openThread(id)` / `openTrash()` | Switch between the inbox, a conversation, and the Trash | [Multiple conversations](#multiple-conversations) |
 | `passage(idOrName)` | Fetch a passage object | [The story and passage globals](#the-story-and-passage-globals) |
 | `react(emoji, direction)` | Land a tapback on the last message | [Reactions](#reactions) |
 | `redactMessage(direction, label)` | Delete a message: the bubble stays, a tombstone replaces it | [Deleted messages](#deleted-messages) |
@@ -1154,6 +1154,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.7.1
 
+- **The Trash is its own screen.** Instead of expanding at the bottom of the inbox, the Trash row now opens a separate screen (header shows the Trash label, chevron returns to the inbox). A conversation opened from the Trash returns to the Trash; recovering the last archived thread bounces back to the inbox. `story.openTrash()` opens it from code, and saves/undo remember when the player was there.
 - **Play to: fast-forward as a real playthrough.** The debug panel's jump section gains a second gear — *play to* routes through the story's written link graph and plays it instantly, auto-tapping the pill that leads toward the target at each fork. History, bubbles, state trackers, events, and checkpoints all fill in (undo steps back through the auto-made choices); no route falls back to a teleport. Also `story.debugFastForward(name)`.
 - **Fixed: linkless narration wiped the pending reply pills.** Chaining an aside or interstitial in with `showDelayed()` while choices were on screen replaced them with the narration's (empty) links. Side narration — speakerless, no links — now displays without touching the pills, the cursor, or `s.previousPassage`. See [Narration](#narration).
 - **The `one-bubble` passage tag** keeps a long message in a single bubble, paragraph breaks and all — the per-message counterpart to `story.config.splitBubbles`. (An inline HTML block does the same for a few paragraphs mid-passage; see [Your first passage](#your-first-passage).)
