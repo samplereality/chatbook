@@ -1309,6 +1309,41 @@ async function run() {
 		})
 	);
 
+	// side narration — speakerless, no links — shows without stealing
+	// the story cursor or the pending reply pills
+	const sideNarration = await page.evaluate(
+		() =>
+			new Promise((resolve) => {
+				window.story.show('pill-demo');
+
+				const pills = () =>
+					document.querySelectorAll('.user-response').length;
+				const notes = () =>
+					document.querySelectorAll(
+						'#phistory .meta-passage, .chat-aside'
+					).length;
+				const before = { pills: pills(), notes: notes() };
+
+				window.story.showDelayed('margin-note', 0);
+				setTimeout(() => {
+					resolve({
+						before,
+						pills: pills(),
+						notes: notes(),
+						cursor: window.passage.name
+					});
+				}, 100);
+			})
+	);
+
+	check(
+		'linkless narration leaves the pending pills and cursor alone',
+		sideNarration.before.pills > 0 &&
+			sideNarration.pills === sideNarration.before.pills &&
+			sideNarration.notes === sideNarration.before.notes + 1 &&
+			sideNarration.cursor === 'pill-demo'
+	);
+
 	console.log('deleted messages');
 
 	// redactMessage tombstones in place — the node is never removed,

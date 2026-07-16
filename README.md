@@ -432,6 +432,8 @@ story.config.metaStyle = 'aside';
 - **`notification`** — the narration drops in as a phone-style notification banner (labeled with the story name by default; change it with `story.config.metaNotificationLabel`). It stays inside the device's fiction — the narrator as an app pinging you. Tapping the banner dismisses it.
 - **`aside`** — the narration appears as a note in the margin *beside* the phone, level with the latest message, and rides along as the chat scrolls — marginalia from a narrator standing entirely outside the device. See [Asides](#asides) below.
 
+**Side narration never steals the choices.** Narration with no links of its own — an aside floated beside a message, a `(hours pass)` interstitial chained in with `showDelayed()` — displays without becoming the story's current passage: the pending reply pills, the cursor, and `s.previousPassage` all stay put, so the player can keep deciding while the narrator talks over them. Narration *with* links (a "Continue" overlay) moves the story to itself as usual, and `End`-tagged finales always do.
+
 Mix modes within one story by tagging individual passages `meta-chat`, `meta-overlay`, `meta-notification`, or `meta-aside` — a tag beats the global setting. Overlay and notification narration is ephemeral by design (it leaves no trace in the transcript), but it still participates in undo and save/restore, and the `read`/`unread` receipt tags work from any mode — narration saying *"hours pass"* over a message stuck on Delivered is exactly the kind of thing this is for.
 
 ### Asides
@@ -1151,6 +1153,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.7.1
 
+- **Fixed: linkless narration wiped the pending reply pills.** Chaining an aside or interstitial in with `showDelayed()` while choices were on screen replaced them with the narration's (empty) links. Side narration — speakerless, no links — now displays without touching the pills, the cursor, or `s.previousPassage`. See [Narration](#narration).
 - **The `one-bubble` passage tag** keeps a long message in a single bubble, paragraph breaks and all — the per-message counterpart to `story.config.splitBubbles`. (An inline HTML block does the same for a few paragraphs mid-passage; see [Your first passage](#your-first-passage).)
 - **Fixed: undo went dead after every reload.** Restoring a save (including the debug autosave that fires on each `tweego -w` rebuild) wiped the checkpoint stack; the replay now rebuilds a checkpoint per player move, so undo works immediately after a reload, a restore, or a timeline rewind.
 - **Fixed: rewinding the timeline into a `showDelayed` chain overshot.** The replayed chain re-armed its next message, which immediately streamed the rest of the chain back in; a rewind now pauses exactly at the picked moment. (A normal reload still carries an in-flight chain forward.)

@@ -1000,6 +1000,9 @@ Object.assign(Story.prototype, {
 		// how the player got here: passages that several routes lead
 		// into can branch on s.previousPassage
 
+		var cameFrom = window.passage;
+		var previousName = this.state.previousPassage;
+
 		if (window.passage) {
 			this.state.previousPassage = window.passage.name;
 		}
@@ -1021,6 +1024,24 @@ Object.assign(Story.prototype, {
 		var speaker = this.getPassageSpeaker(passage);
 		var metaMode = speaker ? 'chat' : this.getMetaMode(passage);
 
+		// narration with no choices of its own is *side* narration —
+		// an aside or interstitial shown while the player is still
+		// deciding. It displays, but it does not become the story's
+		// current passage: the pending reply pills, the cursor, and
+		// the hot thread all stay where they were. (End-tagged finales
+		// keep normal behavior — the story really does move there.)
+
+		var sideNarration =
+			!speaker &&
+			passage.links.length === 0 &&
+			passage.tags.indexOf('End') === -1 &&
+			passage.tags.indexOf('end') === -1;
+
+		if (sideNarration) {
+			window.passage = cameFrom;
+			this.state.previousPassage = previousName;
+		}
+
 		// with no margin and asideMobile 'chip', asides degrade to
 		// centered in-chat narration
 
@@ -1040,7 +1061,9 @@ Object.assign(Story.prototype, {
 		var viewingIt = !this.multiThread ||
 			(this._screen === 'thread' && this._viewedThread === threadId);
 
-		this._hotThread = threadId;
+		if (!sideNarration) {
+			this._hotThread = threadId;
+		}
 
 		// any new content replaces active overlay/notification narration
 
@@ -1171,17 +1194,20 @@ Object.assign(Story.prototype, {
 			this.history.push(passage.id);
 		}
 
-		this.clearUserResponses();
-
 		// the passage's choices render only while its thread is on
 		// screen; opening the thread re-offers them (and arms any
-		// response timer then)
+		// response timer then). Side narration never touches them —
+		// the player is still deciding.
 
-		if (viewingIt) {
-			this.showUserResponses();
-		}
-		else {
-			this.updateHint();
+		if (!sideNarration) {
+			this.clearUserResponses();
+
+			if (viewingIt) {
+				this.showUserResponses();
+			}
+			else {
+				this.updateHint();
+			}
 		}
 
 		this.pcolophon();
