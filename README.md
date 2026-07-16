@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.7.0"
+  "format-version": "2.7.1"
 }
 ```
 
@@ -413,7 +413,7 @@ update: the ukulele is now decorative
 [[and then?(send:)->Hobby 3]]
 ```
 
-The `instant` tag means "this message never shows typing dots," however the passage is reached — a pill, a chain, a `story.show()`. The tag and an explicit delay compose: the delay says *when* the message arrives, the tag says *how*. So `<% story.showDelayed('later', 10000) %>` targeting an `instant`-tagged passage is a **silent wait** — ten quiet seconds, no typing indicator, then the message just lands. Without the tag, the same call shows the speaker typing for the whole delay.
+The `instant` tag means "this message never shows typing dots," however the passage is reached — a pill, a chain, a `story.show()`, a `story.deliver()`. The tag and an explicit delay compose: the delay says *when* the message arrives, the tag says *how*. So `<% story.showDelayed('later', 10000) %>` targeting an `instant`-tagged passage is a **silent wait** — ten quiet seconds, no typing indicator, then the message just lands. Without the tag, the same call shows the speaker typing for the whole delay. `story.deliver()` follows the same grammar: it paces by message length (with a "typing…" state in the inbox), an `instant`-tagged target lands at once, and a numeric second argument — `story.deliver('jan6 2', 2000)` — sets the pace yourself.
 
 ## Narration
 
@@ -648,6 +648,8 @@ Three things move the story between threads:
 
   If the delivered passage offers reply pills of its own, the story's pending choices travel with it: they appear when the player opens that thread, and the reply lands there. That makes `[deliver]` a way to *hand the story off* to another conversation — end a beat with no pills, deliver a message that has them, and the player follows the notification to answer it. (If several pending passages offer pills, the last to arrive wins.)
 
+  Deliveries pace themselves by message length, with a "typing…" state on the thread's inbox row. The target's `instant` tag skips both, and `story.deliver('name', 2000)` sets an explicit delay — the same [pacing grammar](#message-chains-and-montages) as `showDelayed()`.
+
   A delivered message keeps its own sender. Any speaker can text into any thread, so group chats work: in a `thread-family` conversation, a passage tagged `speaker-matt` shows Matt's name and color on the bubble, and the notification banner and inbox preview read "Matt: …" under the thread's name — the way a real phone attributes group messages.
 
 - **The player**, by opening the inbox (the ‹ chevron on the header's left) or tapping a notification banner, can read any thread at any time. The chevron itself is yours to stage: `story.config.inboxButton = false` starts the story feeling like a single conversation, and `<% story.showInboxButton() %>` in a later passage reveals that there was a whole inbox all along (`hideInboxButton()` reverses it). Only the thread holding the story's pending choices shows reply chips; a parked thread shows a grayed-out composer instead — *"Nothing to say right now"* — so the read-only state stays inside the fiction (wording via `story.config.threadIdleHint`; set `''` for none).
@@ -785,8 +787,8 @@ A `🐛 debug` button appears in the corner; it opens a panel that stays open un
 
 - **Where you are** — current passage, thread, and turn count, always in view.
 - **Variables** — a live table of everything in `s`, refreshed as passages show, plus a console line that runs any JavaScript (`s.suspicion = 9`, `story.markRead()`, …).
-- **Timeline** — every message and passage so far; **tap any passage to rewind to that moment**. The conversation rebuilds up to that point by replaying it, so template side effects re-run exactly as they did the first time.
-- **Jump to passage** — a filterable list (by name or tag, current passage highlighted); click one to fast-forward straight to it, no need to play through fifty passages to reach the scene you just wrote. A jump is a *clean teleport*: the transcript resets to the target while `s` is kept, so jumps never pile up in the log or the autosave. To go backwards, use the timeline.
+- **Timeline** — a dropdown of every moment so far; pick one and **rewind** to it. The conversation rebuilds up to that point by replaying it — then *pauses right there*, even mid-`showDelayed`-chain (pending chain timers are dropped, so the future doesn't immediately play itself back in).
+- **Jump to passage** — a dropdown of every passage (alphabetical, current one selected; type while it's open to seek by name); pick one and **jump** to fast-forward straight to it. A jump is a *clean teleport*: the transcript resets to the target while `s` is kept, so jumps never pile up in the log or the autosave. To go backwards, use the timeline.
 - **Story check** — a static lint of the whole story: pill links to passages that don't exist, `[deliver]` and `showDelayed()`/`show()` names that don't resolve, `speaker-*` tags with no `StorySpeakers` profile, `thread-*` tags never declared in `StoryThreads`, and passages nothing points to. Each finding links to the offending passage. It reads source without running it, so dynamic names (`<% %>`) are skipped rather than guessed at; a passage you reach only through dynamic means can opt out of the orphan check with the `unlinked` tag. Also callable as `story.lint()` — it returns the findings as an array.
 - **Transcript** — one click flattens the visible conversation (every thread, chips and narration included) to a Markdown file and downloads it. Reading a chat story as prose is a surprisingly good proofreading pass. Also callable as `story.exportTranscript()`, which returns the Markdown string.
 - **Memory** — what the story has `remember()`ed across playthroughs, with a forget-all button.
@@ -1145,6 +1147,13 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.7.1
+
+- **Fixed: undo went dead after every reload.** Restoring a save (including the debug autosave that fires on each `tweego -w` rebuild) wiped the checkpoint stack; the replay now rebuilds a checkpoint per player move, so undo works immediately after a reload, a restore, or a timeline rewind.
+- **Fixed: rewinding the timeline into a `showDelayed` chain overshot.** The replayed chain re-armed its next message, which immediately streamed the rest of the chain back in; a rewind now pauses exactly at the picked moment. (A normal reload still carries an in-flight chain forward.)
+- **The debug panel got compact.** Timeline and Jump-to-passage are one-line dropdowns with `rewind`/`jump` buttons instead of tall scrolling lists.
+- **Fixed: `story.deliver()` ignored the target's `instant` tag** — a tagged passage still waited out the typing delay. Deliveries now follow the same pacing grammar as `showDelayed()`: pace by message length (with the inbox "typing…" state), land at once when the target is tagged `instant`, or take an explicit delay — `story.deliver('name', 2000)`.
 
 ### Version 2.7
 
