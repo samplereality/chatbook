@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.7.1"
+  "format-version": "2.8.0"
 }
 ```
 
@@ -1149,6 +1149,10 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.8
+
+- **Documentation overhaul.** The docs site gains a persistent sidebar: a sticky table of contents along the left, generated from the section outline, with the current section highlighted while scrolling (a static contents block on narrow screens). The prose throughout was revised toward plain, objective description.
 
 ### Version 2.7.1
 
