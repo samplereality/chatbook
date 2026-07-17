@@ -6376,7 +6376,7 @@ Object.assign(Story.prototype, {
 			edges.push({ target: match[1].trim(), kind: 'deliver' });
 		}
 
-		var call = /\b(show|showDelayed|deliver|debugJump)\(\s*(['"])([^'"]+)\2/g;
+		var call = /\b(show|showDelayed|deliver|debugJump)\s*\(\s*(['"])([^'"]+)\2/g;
 
 		while ((match = call.exec(source))) {
 			edges.push({
@@ -6804,6 +6804,8 @@ Object.assign(Story.prototype, {
 			});
 		});
 
+		var deadEnds = {};
+
 		content.forEach(function(p) {
 			if (
 				p.tags.indexOf('End') > -1 ||
@@ -6827,13 +6829,49 @@ Object.assign(Story.prototype, {
 			}
 
 			if (!canContinue(p.name, {})) {
+				deadEnds[p.name] = p;
+			}
+		});
+
+		// a dead end at the far end of a chain fails canContinue for
+		// every passage along it — report only where the chain stops,
+		// not every ancestor that (correctly) leads there. The walk
+		// passes through exempt intermediaries (asides, deliveries).
+
+		var leadsToDeeper = function(name, seen) {
+			if (seen[name]) {
+				return false;
+			}
+
+			seen[name] = true;
+
+			var p = story.passage(name);
+
+			if (!p) {
+				return false;
+			}
+
+			return story.passageEdges(p.source).some(function(edge) {
+				if (!story.isAutoEdge(edge) || !story.passage(edge.target)) {
+					return false;
+				}
+
+				return (
+					!!deadEnds[edge.target] ||
+					leadsToDeeper(edge.target, seen)
+				);
+			});
+		};
+
+		Object.keys(deadEnds).forEach(function(name) {
+			if (!leadsToDeeper(name, {})) {
 				findings.push({
 					level: 'warn',
 					message:
 						'dead end — no reply pills, and no chain or ' +
 						'delivery from here leads to choices (tag it ' +
 						'`End` if the story is meant to stop here)',
-					passage: p.name
+					passage: name
 				});
 			}
 		});

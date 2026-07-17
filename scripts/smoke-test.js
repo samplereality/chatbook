@@ -1699,6 +1699,33 @@ async function run() {
 		})
 	);
 
+	// a dead end deep in a showDelayed chain is reported once, at the
+	// chain's end — not on every passage that (correctly) leads there
+	check(
+		'a chained dead end is flagged only where the chain stops',
+		await debugPage.evaluate(() => {
+			window.story.passages.push(
+				new window.Passage(9995, 'chain-hub', [], '[[go->chain-1]]'),
+				new window.Passage(9996, 'chain-1', ['speaker-2'], 'first\n\n<% story.showDelayed("chain-aside") %>'),
+				new window.Passage(9997, 'chain-aside', ['aside-left'], 'a note\n\n<% story.showDelayed("chain-end") %>'),
+				new window.Passage(9998, 'chain-end', ['speaker-2'], 'silence')
+			);
+
+			const findings = window.story.lint();
+
+			window.story.passages.length -= 4;
+
+			const deadEnds = findings.filter(
+				(f) => f.message.indexOf('dead end') > -1
+			);
+
+			return (
+				deadEnds.length === 1 &&
+				deadEnds[0].passage === 'chain-end'
+			);
+		})
+	);
+
 	// the transcript export flattens what's on screen to Markdown
 	check(
 		'transcript export flattens the conversation to Markdown',
