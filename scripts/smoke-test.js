@@ -2503,6 +2503,35 @@ async function run() {
 			!quietReadDelivery.banner
 	);
 
+	// reopening a conversation always shows the newest messages, even
+	// if the player had scrolled up before leaving
+	check(
+		'a thread reopens scrolled to the bottom',
+		await inboxPage.evaluate(
+			() =>
+				new Promise((resolve) => {
+					window.story.openThread('mom');
+
+					const panel = document.getElementById('chat-panel');
+
+					panel.scrollTop = 0;
+					window.story.openInbox();
+					window.story.openThread('mom');
+					requestAnimationFrame(() =>
+						requestAnimationFrame(() => {
+							const overflows =
+								panel.scrollHeight > panel.clientHeight;
+							const atBottom =
+								panel.scrollTop + panel.clientHeight >=
+								panel.scrollHeight - 4;
+
+							resolve(overflows && atBottom);
+						})
+					);
+				})
+		)
+	);
+
 	check(
 		'a seeded [tombstone] renders as a deleted message',
 		await inboxPage.evaluate(() => {

@@ -384,7 +384,6 @@ var Story = function() {
 	this._typingThread = null;
 	this._threadActivity = {};
 	this._activitySeq = 0;
-	this._scrollPositions = {};
 
 	/* threads moved to the Trash (archived, readable, recoverable) */
 	this._threadArchived = {};
@@ -4637,8 +4636,6 @@ Object.assign(Story.prototype, {
 		var log = this.logFor(threadId);
 
 		if (this._viewedThread && this._threadLogs[this._viewedThread]) {
-			this._scrollPositions[this._viewedThread] =
-				this.dom.panel.scrollTop;
 			this._threadLogs[this._viewedThread].hidden = true;
 		}
 
@@ -4684,11 +4681,12 @@ Object.assign(Story.prototype, {
 			this.renderIdleComposer();
 		}
 
+		// a conversation always opens at its newest messages — quiet
+		// deliveries land at the bottom, and a remembered mid-scroll
+		// position would hide them
+
 		window.requestAnimationFrame(function() {
-			story.dom.panel.scrollTop =
-				threadId in story._scrollPositions
-					? story._scrollPositions[threadId]
-					: story.dom.panel.scrollHeight;
+			story.dom.panel.scrollTop = story.dom.panel.scrollHeight;
 		});
 	},
 
@@ -4703,8 +4701,6 @@ Object.assign(Story.prototype, {
 		}
 
 		if (this._viewedThread && this._threadLogs[this._viewedThread]) {
-			this._scrollPositions[this._viewedThread] =
-				this.dom.panel.scrollTop;
 			this._threadLogs[this._viewedThread].hidden = true;
 		}
 
@@ -4732,8 +4728,6 @@ Object.assign(Story.prototype, {
 		}
 
 		if (this._viewedThread && this._threadLogs[this._viewedThread]) {
-			this._scrollPositions[this._viewedThread] =
-				this.dom.panel.scrollTop;
 			this._threadLogs[this._viewedThread].hidden = true;
 		}
 

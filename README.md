@@ -1195,6 +1195,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8
 
+- **Threads always open at the newest messages.** Reopening a conversation previously restored the player's last scroll position, which could hide messages (quiet deliveries especially) that arrived below it.
 - **Fixed: debug time travel ignored threads.** Rewinding or restoring replayed the conversation into whatever thread was on screen (the replay inherited the current hot thread instead of re-deriving it from the start passage), and a debug jump rendered an untagged passage into the current thread. Restores now rebuild thread context from the top; jump and play-to land the passage in its own conversation — tagged directly or inferred from the graph — and move the view there.
 - **The `quiet` and `quiet-read` passage tags.** A `[deliver]`ed passage tagged `quiet` lands with no banner, sound, typing state, or arrival animation — just an unread badge; `quiet-read` drops the badge too, delivering already-read history. The mid-story counterpart of `seed`, for messages (or thread renames) that happened off-screen during a time skip.
 - **`story.renameThread(id, name)`** changes a conversation's display name mid-story — inbox row, thread header, and banners follow. Pairs with a `[system …]` chip announcing the rename; fires `threadrenamed`.
