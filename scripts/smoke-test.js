@@ -2471,6 +2471,38 @@ async function run() {
 			quietDelivery.typing === null
 	);
 
+	// quiet-read goes further: not even an unread badge
+	const quietReadDelivery = await inboxPage.evaluate(
+		() =>
+			new Promise((resolve) => {
+				const before = window.story.unread.mom || 0;
+
+				window.story.deliver('mom-quiet-read');
+				setTimeout(() => {
+					const log = document.querySelector(
+						'.thread-log[data-thread="mom"]'
+					);
+
+					resolve({
+						arrived:
+							log.textContent.indexOf('hope you') > -1,
+						unreadUnchanged:
+							(window.story.unread.mom || 0) === before,
+						banner: !document.getElementById(
+							'meta-notification'
+						).hidden
+					});
+				}, 60);
+			})
+	);
+
+	check(
+		'a quiet-read delivery lands with no badge at all',
+		quietReadDelivery.arrived &&
+			quietReadDelivery.unreadUnchanged &&
+			!quietReadDelivery.banner
+	);
+
 	check(
 		'a seeded [tombstone] renders as a deleted message',
 		await inboxPage.evaluate(() => {

@@ -5274,7 +5274,8 @@ Object.assign(Story.prototype, {
 
 		var instant =
 			passage.tags.indexOf('instant') > -1 ||
-			passage.tags.indexOf('quiet') > -1;
+			passage.tags.indexOf('quiet') > -1 ||
+			passage.tags.indexOf('quiet-read') > -1;
 		var delay =
 			typeof opts.delay === 'number' && opts.delay >= 0
 				? opts.delay
@@ -5321,9 +5322,12 @@ Object.assign(Story.prototype, {
 		var story = this;
 
 		// a `quiet` delivery happened off-screen: no arrival effects,
-		// no banner — just the message waiting in its thread, unread
+		// no banner — just the message waiting in its thread, unread.
+		// `quiet-read` goes further: no unread badge either, as if the
+		// exchange happened and was read entirely off-camera.
 
-		var quiet = passage.tags.indexOf('quiet') > -1;
+		var quietRead = passage.tags.indexOf('quiet-read') > -1;
+		var quiet = quietRead || passage.tags.indexOf('quiet') > -1;
 
 		nodes.forEach(function(node) {
 			if (opts.instant || quiet) {
@@ -5374,7 +5378,7 @@ Object.assign(Story.prototype, {
 		this.noteThreadMessage(
 			threadId,
 			this.previewText(html),
-			opts.instant,
+			opts.instant || quietRead,
 			speaker,
 			quiet
 		);

@@ -149,7 +149,7 @@ And a handful of passage *tags* change how a passage behaves. Tags combine freel
 | `speaker-<id>` | Marks who sends the message | [Your first passage](#your-first-passage) |
 | `thread-<id>` | Routes the passage to a conversation | [Multiple conversations](#multiple-conversations) |
 | `seed` | Renders the passage into its thread as pre-existing, read history | [Multiple conversations](#multiple-conversations) |
-| `quiet` | A `[deliver]`ed passage lands with no banner, sound, or typing — just an unread badge | [Multiple conversations](#multiple-conversations) |
+| `quiet` / `quiet-read` | A `[deliver]`ed passage lands with no banner, sound, or typing — with an unread badge (`quiet`) or none (`quiet-read`) | [Multiple conversations](#multiple-conversations) |
 | `meta-chat` / `meta-overlay` / `meta-notification` | Overrides the narration mode for one passage | [Narration](#narration) |
 | `aside-left` / `aside-right` | Renders narration as a margin note | [Asides](#asides) |
 | `aside-beats-<n>` / `aside-hold` / `aside-up-<n>` / `aside-down-<n>` | Tune an aside's lifetime and placement | [Asides](#asides) |
@@ -737,6 +737,15 @@ Are you getting my messages?
 Call when you can. No rush. But call.
 ```
 
+`quiet-read` goes one step further: no unread badge either. The message (or `[system …]` chip) is simply part of the thread's history the next time the player looks, as if the exchange happened and was read entirely off-camera — useful for events like an off-screen thread rename:
+
+```
+:: family-renamed [thread-family speaker-matt quiet-read]
+[system Matt renamed this conversation "Mom and Dad"]
+
+<% story.renameThread('family', 'Mom and Dad') %>
+```
+
 **The Trash.** Conversations can be archived — out of the main inbox, never deleted. A **Trash** row appears at the bottom of the inbox; tapping it opens the Trash as its own screen, where the player can read everything inside. The header chevron leads back to the inbox, and a conversation opened from the Trash returns to the Trash (`story.openTrash()` opens the screen from code). Recovering the Trash's last conversation returns the player to the inbox. Declare a thread `archived: true` to start it there (old spam, defunct group chats), or move one mid-story:
 
 ```
@@ -1186,7 +1195,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8
 
-- **The `quiet` passage tag.** A `[deliver]`ed passage tagged `quiet` lands with no banner, sound, typing state, or arrival animation — just an unread badge. The mid-story counterpart of `seed`, for messages that arrived off-screen during a time skip.
+- **The `quiet` and `quiet-read` passage tags.** A `[deliver]`ed passage tagged `quiet` lands with no banner, sound, typing state, or arrival animation — just an unread badge; `quiet-read` drops the badge too, delivering already-read history. The mid-story counterpart of `seed`, for messages (or thread renames) that happened off-screen during a time skip.
 - **`story.renameThread(id, name)`** changes a conversation's display name mid-story — inbox row, thread header, and banners follow. Pairs with a `[system …]` chip announcing the rename; fires `threadrenamed`.
 - **The story check finds dead ends.** A passage that takes the story cursor but offers no way forward — no reply pills, and no chain or delivery that eventually reaches choices — is flagged as a warning. `End`-tagged finales, seeds, and side content are exempt.
 - **Documentation overhaul.** The docs site gains a persistent sidebar: a sticky table of contents along the left, generated from the section outline, with the current section highlighted while scrolling (a static contents block on narrow screens). The prose throughout was revised toward plain, objective description.
