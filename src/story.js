@@ -5084,7 +5084,7 @@ Object.assign(Story.prototype, {
 		return '';
 	},
 
-	noteThreadMessage: function(threadId, previewText, instant, speaker) {
+	noteThreadMessage: function(threadId, previewText, instant, speaker, quiet) {
 		if (!this.multiThread) {
 			return;
 		}
@@ -5097,7 +5097,10 @@ Object.assign(Story.prototype, {
 		if (!viewingIt && !instant) {
 			this.unread[threadId] = (this.unread[threadId] || 0) + 1;
 
-			if (this.config.threadNotifications && previewText) {
+			// quiet deliveries keep the unread badge but skip the
+			// banner: the message arrived off-screen, in story time
+
+			if (this.config.threadNotifications && previewText && !quiet) {
 				// in a group thread the notification names the sender,
 				// like a real phone: "Family" up top, "Matt: …" below
 
@@ -5266,9 +5269,12 @@ Object.assign(Story.prototype, {
 
 		// same pacing grammar as showDelayed: an explicit delay says
 		// WHEN it arrives, the target's `instant` tag says HOW (no
-		// typing state); otherwise pace by message length
+		// typing state); otherwise pace by message length. A `quiet`
+		// target also lands at once — it happened off-screen.
 
-		var instant = passage.tags.indexOf('instant') > -1;
+		var instant =
+			passage.tags.indexOf('instant') > -1 ||
+			passage.tags.indexOf('quiet') > -1;
 		var delay =
 			typeof opts.delay === 'number' && opts.delay >= 0
 				? opts.delay
@@ -5314,8 +5320,13 @@ Object.assign(Story.prototype, {
 		var nodes = this.buildPassageElement(passage, speaker, html);
 		var story = this;
 
+		// a `quiet` delivery happened off-screen: no arrival effects,
+		// no banner — just the message waiting in its thread, unread
+
+		var quiet = passage.tags.indexOf('quiet') > -1;
+
 		nodes.forEach(function(node) {
-			if (opts.instant) {
+			if (opts.instant || quiet) {
 				node.classList.add('no-anim');
 			}
 
@@ -5328,7 +5339,7 @@ Object.assign(Story.prototype, {
 			this.timeline.push({ t: 'd', id: passage.id });
 		}
 
-		if (!opts.instant && speaker && speaker !== 'you') {
+		if (!opts.instant && !quiet && speaker && speaker !== 'you') {
 			this.playSound('receive');
 			this.notifyTitle();
 		}
@@ -5364,7 +5375,8 @@ Object.assign(Story.prototype, {
 			threadId,
 			this.previewText(html),
 			opts.instant,
-			speaker
+			speaker,
+			quiet
 		);
 
 		if (this._viewedThread === threadId) {

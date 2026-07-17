@@ -2431,6 +2431,46 @@ async function run() {
 		instantDelivery.arrived && instantDelivery.typingThread === null
 	);
 
+	// a quiet delivery: unread badge yes; banner, typing, arrival no
+	const quietDelivery = await inboxPage.evaluate(
+		() =>
+			new Promise((resolve) => {
+				document.getElementById('meta-notification').hidden = true;
+				window.story._bannerThread = null;
+				window.story._bannerQueue = [];
+
+				const before = window.story.unread.mom || 0;
+
+				window.story.deliver('mom-quiet');
+				setTimeout(() => {
+					const log = document.querySelector(
+						'.thread-log[data-thread="mom"]'
+					);
+
+					resolve({
+						arrived:
+							log.textContent.indexOf(
+								'saw my last message'
+							) > -1,
+						unread:
+							(window.story.unread.mom || 0) === before + 1,
+						banner: !document.getElementById(
+							'meta-notification'
+						).hidden,
+						typing: window.story._typingThread
+					});
+				}, 60);
+			})
+	);
+
+	check(
+		'a quiet delivery lands with a badge but no banner or typing',
+		quietDelivery.arrived &&
+			quietDelivery.unread &&
+			!quietDelivery.banner &&
+			quietDelivery.typing === null
+	);
+
 	check(
 		'a seeded [tombstone] renders as a deleted message',
 		await inboxPage.evaluate(() => {

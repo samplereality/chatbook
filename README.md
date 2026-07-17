@@ -149,6 +149,7 @@ And a handful of passage *tags* change how a passage behaves. Tags combine freel
 | `speaker-<id>` | Marks who sends the message | [Your first passage](#your-first-passage) |
 | `thread-<id>` | Routes the passage to a conversation | [Multiple conversations](#multiple-conversations) |
 | `seed` | Renders the passage into its thread as pre-existing, read history | [Multiple conversations](#multiple-conversations) |
+| `quiet` | A `[deliver]`ed passage lands with no banner, sound, or typing — just an unread badge | [Multiple conversations](#multiple-conversations) |
 | `meta-chat` / `meta-overlay` / `meta-notification` | Overrides the narration mode for one passage | [Narration](#narration) |
 | `aside-left` / `aside-right` | Renders narration as a margin note | [Asides](#asides) |
 | `aside-beats-<n>` / `aside-hold` / `aside-up-<n>` / `aside-down-<n>` | Tune an aside's lifetime and placement | [Asides](#asides) |
@@ -716,6 +717,26 @@ Did you eat today? You never answer me.
 
 Seeds follow passage order, survive save/restore, and stay put under undo (they're history, not moves). Note that seeding a hidden thread reveals it — old messages mean the contact isn't a surprise.
 
+**Quiet deliveries.** Tag a passage `quiet` and `[deliver]`ing it lands the message with no banner, no sound, no typing state, and no arrival animation — just an unread badge on the thread. Where a seed is history from before the story began, a quiet delivery is the mid-story equivalent: messages that arrived off-screen, in story time. After a time skip, deliver the catch-up quietly and the player finds it waiting:
+
+```
+:: six-months-later [speaker-sam clear]
+[timestamp Six months later]
+
+you're back
+
+[deliver mom-missed-1]
+[deliver mom-missed-2]
+
+[[I'm back->reply]]
+
+:: mom-missed-1 [thread-mom speaker-mom quiet]
+Are you getting my messages?
+
+:: mom-missed-2 [thread-mom speaker-mom quiet]
+Call when you can. No rush. But call.
+```
+
 **The Trash.** Conversations can be archived — out of the main inbox, never deleted. A **Trash** row appears at the bottom of the inbox; tapping it opens the Trash as its own screen, where the player can read everything inside. The header chevron leads back to the inbox, and a conversation opened from the Trash returns to the Trash (`story.openTrash()` opens the screen from code). Recovering the Trash's last conversation returns the player to the inbox. Declare a thread `archived: true` to start it there (old spam, defunct group chats), or move one mid-story:
 
 ```
@@ -1165,6 +1186,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8
 
+- **The `quiet` passage tag.** A `[deliver]`ed passage tagged `quiet` lands with no banner, sound, typing state, or arrival animation — just an unread badge. The mid-story counterpart of `seed`, for messages that arrived off-screen during a time skip.
 - **`story.renameThread(id, name)`** changes a conversation's display name mid-story — inbox row, thread header, and banners follow. Pairs with a `[system …]` chip announcing the rename; fires `threadrenamed`.
 - **The story check finds dead ends.** A passage that takes the story cursor but offers no way forward — no reply pills, and no chain or delivery that eventually reaches choices — is flagged as a warning. `End`-tagged finales, seeds, and side content are exempt.
 - **Documentation overhaul.** The docs site gains a persistent sidebar: a sticky table of contents along the left, generated from the section outline, with the current section highlighted while scrolling (a static contents block on narrow screens). The prose throughout was revised toward plain, objective description.
