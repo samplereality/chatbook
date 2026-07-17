@@ -4390,6 +4390,41 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 Renames a conversation mid-story: the inbox row, the thread
+	 header, and notification banners all use the new name from here
+	 on. Pairs with a [system …] chip announcing the rename. Called
+	 from a passage template, the rename replays with the passage on
+	 save/restore; undo does not revert it.
+
+	 Triggered event: `threadrenamed`, detail { thread, name, story }.
+	**/
+
+	renameThread: function(threadId, name) {
+		if (!this.threads[threadId]) {
+			this.threads[threadId] = {};
+		}
+
+		this.threads[threadId].name = name;
+
+		if (this.multiThread) {
+			this.renderInbox();
+
+			if (
+				this._screen === 'thread' &&
+				this._viewedThread === threadId
+			) {
+				this.applyThreadHeader(threadId);
+			}
+		}
+
+		dispatch('threadrenamed', {
+			thread: threadId,
+			name: name,
+			story: this
+		});
+	},
+
+	/**
 	 Moves a conversation to the Trash: out of the main inbox, still
 	 readable (and openable) under the inbox's Trash section, never
 	 deleted. Any message later landing in the thread recovers it

@@ -2464,6 +2464,28 @@ async function run() {
 		})
 	);
 
+	// renameThread updates the inbox row and, when viewing, the header
+	check(
+		'renameThread renames the inbox row and thread header',
+		await inboxPage.evaluate(() => {
+			window.story.openThread('family');
+			window.story.renameThread('family', 'Mom and Dad');
+
+			const header =
+				document.getElementById('ptitle').textContent ===
+				'Mom and Dad';
+
+			window.story.openInbox();
+
+			const row = Array.from(
+				document.querySelectorAll('.inbox-row .inbox-name')
+			).some((el) => el.textContent === 'Mom and Dad');
+
+			window.story.renameThread('family', 'The Fam'); // restore
+			return header && row;
+		})
+	);
+
 	check(
 		'transcript export sections multi-thread stories by conversation',
 		await inboxPage.evaluate(() => {

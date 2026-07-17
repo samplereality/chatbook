@@ -664,6 +664,17 @@ family: The Fam; members: mom, matt
 
 The members appear under the thread's name in the header, the inbox row shows a cluster of the first two members' avatars, and every notification banner and inbox preview names its sender ("Matt: …"). Inside the thread nothing special is required — any `speaker-*` can text into any thread, and each message carries its own name and color.
 
+**Renaming a conversation.** `story.renameThread(id, name)` changes a thread's display name mid-story — the inbox row, the thread header, and notification banners all use the new name from then on. It pairs with a `[system …]` chip announcing the change:
+
+```
+:: the-rename [thread-family speaker-matt]
+[system Matt renamed this conversation "Mom and Dad"]
+
+<% story.renameThread('family', 'Mom and Dad') %>there. now it's official
+```
+
+A `threadrenamed` event fires. Called from a passage template (as above), the rename replays with the passage on save/restore; undo does not revert it.
+
 **Hidden threads.** Declare a thread `hidden: true` and it stays out of the inbox until its first message arrives — for contacts that should not appear before they first text:
 
 ```
@@ -934,6 +945,7 @@ Every public `story.*` method, alphabetically — each links to the section that
 | `react(emoji, direction)` | Land a tapback on the last message | [Reactions](#reactions) |
 | `redactMessage(direction, label)` | Delete a message: the bubble stays, a tombstone replaces it | [Deleted messages](#deleted-messages) |
 | `remember(key, value)` / `recall(key, fallback)` / `forget(key)` | Cross-playthrough memory (survives restart) | [Recipes](#remember-across-playthroughs) |
+| `renameThread(id, name)` | Change a conversation's display name mid-story | [Multiple conversations](#multiple-conversations) |
 | `revealThread(id)` | Bring a hidden thread into the inbox | [Multiple conversations](#multiple-conversations) |
 | `save()` / `restore(hash)` | Write progress to the URL / replay a save | [Saving](#saving) |
 | `setHeader(title, subtitle)` | Repurpose the header mid-story | [Page chrome and menus](#page-chrome-and-menus) |
@@ -967,6 +979,7 @@ window.addEventListener('photosent', function (e) {
 | `timeout` | a response timer expires | `{ target, text, story }` |
 | `textinput` | the player sends free-text input | `{ text, target, story }` |
 | `threadarchived` | a conversation moves to the Trash | `{ thread, story }` |
+| `threadrenamed` | a conversation's display name changes | `{ thread, name, story }` |
 | `threadrestored` | a conversation leaves the Trash | `{ thread, story }` |
 | `save` | progress is written to a save | `{ story }` |
 | `restore` | a save begins replaying | `{ story }` |
@@ -1152,6 +1165,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8
 
+- **`story.renameThread(id, name)`** changes a conversation's display name mid-story — inbox row, thread header, and banners follow. Pairs with a `[system …]` chip announcing the rename; fires `threadrenamed`.
 - **The story check finds dead ends.** A passage that takes the story cursor but offers no way forward — no reply pills, and no chain or delivery that eventually reaches choices — is flagged as a warning. `End`-tagged finales, seeds, and side content are exempt.
 - **Documentation overhaul.** The docs site gains a persistent sidebar: a sticky table of contents along the left, generated from the section outline, with the current section highlighted while scrolling (a static contents block on narrow screens). The prose throughout was revised toward plain, objective description.
 
