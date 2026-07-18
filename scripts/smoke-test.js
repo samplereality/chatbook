@@ -1167,13 +1167,39 @@ async function run() {
 		'[then] parses into chain edges, with or without an in-clause',
 		await chainPage.evaluate(() => {
 			const edges = window.story.passageEdges(
-				'hello\n\n[then next stop]\n\n[then later in 2.5s]'
+				"hello\n\n[then next stop]\n\n[then later in .5s]\n\n" +
+					"[then 'the walk in the park' in 2s]\n\n" +
+					"[deliver 'the walk in the park']"
+			);
+			const chains = edges
+				.filter((e) => e.kind === 'chain')
+				.map((e) => e.target);
+			const delivers = edges
+				.filter((e) => e.kind === 'deliver')
+				.map((e) => e.target);
+			return (
+				chains.join('|') ===
+					'next stop|later|the walk in the park' &&
+				delivers.join('|') === 'the walk in the park'
+			);
+		})
+	);
+
+	check(
+		'[then] and [deliver] accept quoted names and bare decimals',
+		await chainPage.evaluate(() => {
+			const then = window.Passage.render(
+				"[then 'the walk in the park' in .5s]"
+			);
+			const deliver = window.Passage.render(
+				'[deliver "the walk in the park"]'
 			);
 			return (
-				edges.length === 2 &&
-				edges[0].target === 'next stop' &&
-				edges[1].target === 'later' &&
-				edges.every((e) => e.kind === 'chain')
+				then.indexOf('data-passage="the walk in the park"') > -1 &&
+				then.indexOf('data-delay="500"') > -1 &&
+				deliver.indexOf(
+					'class="chat-deliver" data-passage="the walk in the park"'
+				) > -1
 			);
 		})
 	);

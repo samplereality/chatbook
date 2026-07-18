@@ -80,6 +80,23 @@ function byId(id) {
 	return document.getElementById(id);
 }
 
+/* a passage name in a [then]/[deliver] directive may be quoted to keep
+   an " in " inside the name literal; matched surrounding quotes come off */
+
+function unquoteName(name) {
+	var first = name.charAt(0);
+
+	if (
+		(first === "'" || first === '"') &&
+		name.length > 2 &&
+		name.charAt(name.length - 1) === first
+	) {
+		return name.slice(1, -1);
+	}
+
+	return name;
+}
+
 function deepClone(value) {
 	try {
 		return JSON.parse(JSON.stringify(value));
@@ -6480,14 +6497,20 @@ Object.assign(Story.prototype, {
 		var deliverRe = /\[deliver[ \t]+([^\]]+)\]/g;
 
 		while ((match = deliverRe.exec(source))) {
-			edges.push({ target: match[1].trim(), kind: 'deliver' });
+			edges.push({
+				target: unquoteName(match[1].trim()),
+				kind: 'deliver'
+			});
 		}
 
 		var thenRe =
-			/^[ \t]*\[then[ \t]+(.+?)(?:[ \t]+in[ \t]+\d+(?:\.\d+)?(?:ms|s))?[ \t]*\][ \t]*$/gim;
+			/^[ \t]*\[then[ \t]+(.+?)(?:[ \t]+in[ \t]+\d*\.?\d+(?:ms|s))?[ \t]*\][ \t]*$/gim;
 
 		while ((match = thenRe.exec(source))) {
-			edges.push({ target: match[1].trim(), kind: 'chain' });
+			edges.push({
+				target: unquoteName(match[1].trim()),
+				kind: 'chain'
+			});
 		}
 
 		var call = /\b(show|showDelayed|deliver|debugJump)\s*\(\s*(['"])([^'"]+)\2/g;
