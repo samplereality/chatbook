@@ -26,6 +26,26 @@ marked.setOptions({
    5. render Markdown
 **/
 
+/**
+ A passage name in a directive may be quoted — [then 'the walk in the
+ park' in 2s] — to keep an " in " inside the name literal. Surrounding
+ matched quotes come off; anything else is left alone.
+**/
+
+function unquote(name) {
+	var first = name.charAt(0);
+
+	if (
+		(first === "'" || first === '"') &&
+		name.length > 2 &&
+		name.charAt(name.length - 1) === first
+	) {
+		return name.slice(1, -1);
+	}
+
+	return name;
+}
+
 function render(source) {
 	var result;
 
@@ -98,7 +118,7 @@ function render(source) {
 	// clause sets the delay: [then reply in 4s] or [then reply in 250ms]
 
 	result = result.replace(
-		/^[ \t]*\[then[ \t]+(.+?)(?:[ \t]+in[ \t]+(\d+(?:\.\d+)?)(ms|s))?[ \t]*\][ \t]*$/gim,
+		/^[ \t]*\[then[ \t]+(.+?)(?:[ \t]+in[ \t]+(\d*\.?\d+)(ms|s))?[ \t]*\][ \t]*$/gim,
 		function(match, name, amount, unit) {
 			var delay = '';
 
@@ -110,7 +130,7 @@ function render(source) {
 
 			return (
 				'<div class="chat-then" data-passage="' +
-				template.escapeHtml(name.trim()) +
+				template.escapeHtml(unquote(name.trim())) +
 				'" data-delay="' + delay + '"></div>'
 			);
 		}
@@ -148,7 +168,7 @@ function render(source) {
 	result = result.replace(
 		/^[ \t]*\[deliver[ \t]+([^\]]+)\][ \t]*$/gim,
 		function(match, name) {
-			return '<div class="chat-deliver" data-passage="' + template.escapeHtml(name.trim()) + '"></div>';
+			return '<div class="chat-deliver" data-passage="' + template.escapeHtml(unquote(name.trim())) + '"></div>';
 		}
 	);
 
