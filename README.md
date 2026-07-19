@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.8.0"
+  "format-version": "2.8.1"
 }
 ```
 
@@ -1215,10 +1215,13 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
+### Version 2.8.1
+
+- **Fixed: a cross-thread link didn't move the view.** The docs promised that a link to a passage in another conversation pulls the player there; in practice the passage landed off-screen and announced itself with a notification banner. A player-chosen advance — a text pill, reaction, photo, location, free-text reply, or timed response — now switches the view to the target's thread at the moment of the tap, so the typing indicator and arrival play out where the player is watching. Autonomous arrivals (`[deliver]`, chains into another thread) still notify instead. See [Multiple conversations](#multiple-conversations).
+- **Word counts.** The debug panel's header shows the current passage's word count, and the story check opens with the piece's total words across all content passages. Counts cover readable text — prose, pill labels, `(send: …)` text — and exclude code, comments, directives, and markup. Also `story.wordCount()` / `story.wordCount('passage name')`. See [Debug mode](#debug-mode).
+
 ### Version 2.8
 
-- **Word counts.** The debug panel's header shows the current passage's word count, and the story check opens with the piece's total words across all content passages. Counts cover readable text — prose, pill labels, `(send: …)` text — and exclude code, comments, directives, and markup. Also `story.wordCount()` / `story.wordCount('passage name')`. See [Debug mode](#debug-mode).
-- **Fixed: a cross-thread link didn't move the view.** The docs promised that a link to a passage in another conversation pulls the player there; in practice the passage landed off-screen and announced itself with a notification banner. A player-chosen advance — a text pill, reaction, photo, location, free-text reply, or timed response — now switches the view to the target's thread at the moment of the tap, so the typing indicator and arrival play out where the player is watching. Autonomous arrivals (`[deliver]`, chains into another thread) still notify instead. See [Multiple conversations](#multiple-conversations).
 - **The `[then …]` directive.** The twee form of `story.showDelayed()`: `[then next passage]` chains to a passage with natural pacing, and an `in` clause sets the delay — `[then next passage in 4s]`, `in 500ms`, or `in 0s` for an instant landing. Names may be quoted (`[then 'the walk in the park' in 2s]`) to keep an ` in ` inside a name literal; `[deliver]` accepts quotes too. The story check follows `[then]` links like any other edge. See [Message chains and montages](#message-chains-and-montages).
 - **Banners stack.** Messages arriving in a row each get their own notification banner, stacked in arrival order like a notification shade — a newer one no longer replaces (same thread) or delays (other thread) the one on screen. Each banner dismisses on its own `config.bannerSeconds` timer; up to `config.bannerStack` (default 3) show at once and further ones wait for a free slot.
 - **The `[sound …]` directive.** An audio cue that plays when its passage shows, rendering nothing — a phone buzzing, a chime from another room. Skipped on save replays, seeds, and quiet deliveries; also `story.playAudioFile(src)`. See [Sound cues](#sound-cues).
