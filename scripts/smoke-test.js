@@ -2310,17 +2310,19 @@ async function run() {
 			.locator('.thread-log[data-thread="sam"] .chat-passage[data-speaker="you"]:has-text("texting me")')
 			.count()) === 1
 	);
-	await inboxPage.waitForSelector(
-		'#banner-stack .meta-notification-card:has-text("Mom")',
-		{ timeout: 30000 }
-	);
-	await inboxPage.click(
-		'#banner-stack .meta-notification-card:has-text("Mom")'
-	);
+	// mom-2 is a direct cross-thread link: picking the pill moves the
+	// view to the mom thread with the cursor — no banner detour
 	await inboxPage.waitForSelector('.user-response:has-text("stay inside")', {
-		timeout: 25000
+		timeout: 30000
 	});
-	check('a cross-thread link moves the conversation there', true);
+	check(
+		'a cross-thread link pulls the view along with the cursor',
+		await inboxPage.evaluate(
+			() =>
+				window.story._viewedThread === 'mom' &&
+				document.getElementById('ptitle').textContent === 'Mom'
+		)
+	);
 
 	await inboxPage.click('.user-response:has-text("stay inside")');
 	await inboxPage.waitForSelector('.thread-log[data-thread="mom"] .chat-reaction', {

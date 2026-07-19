@@ -961,9 +961,9 @@ Object.assign(Story.prototype, {
 		var target = this.passage(targetName);
 
 		if (parts.length === 0 && target && !this.getPassageSpeaker(target)) {
-			this.show(targetName, { noMove: true });
+			this.show(targetName, { noMove: true, follow: true });
 		} else {
-			this.showDelayed(targetName, { noMove: true });
+			this.showDelayed(targetName, { noMove: true, follow: true });
 		}
 	},
 
@@ -975,6 +975,8 @@ Object.assign(Story.prototype, {
 	   noMove  - don't move the current passage into history first
 	   record  - if false, don't record this passage in the timeline
 	   instant - skip entrance animations (used when restoring)
+	   follow  - a player action chose this passage: if it belongs to
+	             another conversation, move the view there
 	**/
 
 	show: function(idOrName, opts) {
@@ -990,6 +992,10 @@ Object.assign(Story.prototype, {
 				)
 			);
 			return;
+		}
+
+		if (opts.follow) {
+			this.followTargetThread(passage);
 		}
 
 		/**
@@ -2115,7 +2121,7 @@ Object.assign(Story.prototype, {
 
 		dispatch('textinput', { text: text, target: targetName, story: this });
 
-		this.showDelayed(targetName, { noMove: true });
+		this.showDelayed(targetName, { noMove: true, follow: true });
 	},
 
 	/**
@@ -2219,7 +2225,7 @@ Object.assign(Story.prototype, {
 			story: this
 		});
 
-		this.showDelayed(offer.target, { noMove: true });
+		this.showDelayed(offer.target, { noMove: true, follow: true });
 	},
 
 	/**
@@ -2312,7 +2318,7 @@ Object.assign(Story.prototype, {
 				story.state.playerLocation = null;
 			}
 
-			story.showDelayed(targetName, { noMove: true });
+			story.showDelayed(targetName, { noMove: true, follow: true });
 		};
 
 		if (!navigator.geolocation) {
@@ -2597,7 +2603,7 @@ Object.assign(Story.prototype, {
 
 		dispatch('photosent', { name: name, target: targetName, story: this });
 
-		this.showDelayed(targetName, { noMove: true });
+		this.showDelayed(targetName, { noMove: true, follow: true });
 	},
 
 	/**
@@ -3067,7 +3073,7 @@ Object.assign(Story.prototype, {
 
 		dispatch('reaction', { emoji: emoji, story: this });
 
-		this.showDelayed(targetName, { noMove: true });
+		this.showDelayed(targetName, { noMove: true, follow: true });
 	},
 
 	/**
@@ -4746,6 +4752,25 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 Moves the view to the thread a player-chosen passage belongs to.
+	 Tapping a pill that advances the story into another conversation
+	 pulls the player along with the cursor — unlike autonomous
+	 arrivals ([deliver], chains), which raise a notification instead.
+	**/
+
+	followTargetThread: function(passage) {
+		if (!this.multiThread) {
+			return;
+		}
+
+		var threadId = this.getPassageThread(passage);
+
+		if (this._screen !== 'thread' || this._viewedThread !== threadId) {
+			this.openThread(threadId);
+		}
+	},
+
+	/**
 	 Shows the inbox: every conversation with previews and unread
 	 badges, most recent first.
 	**/
@@ -5557,6 +5582,16 @@ Object.assign(Story.prototype, {
 		if (!passage) {
 			this.show(idOrName, opts); // surfaces the error message
 			return;
+		}
+
+		// a player-chosen target in another conversation pulls the view
+		// there now, so the typing indicator runs where the player is
+		// watching; the deferred show doesn't need to pull again (and
+		// shouldn't yank a player who wandered off mid-delay)
+
+		if (opts.follow) {
+			this.followTargetThread(passage);
+			opts.follow = false;
 		}
 
 		var speaker = this.getPassageSpeaker(passage);
