@@ -38,6 +38,12 @@
 					"meta.embedded.block.json": "json"
 				}
 			}
+		],
+		"snippets": [
+			{
+				"language": "subtext-twee",
+				"path": "./snippets/subtext.code-snippets"
+			}
 		]
 	}
 }

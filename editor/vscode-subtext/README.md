@@ -1,6 +1,7 @@
 # Subtext syntax highlighting for VS Code
 
-Syntax highlighting for Subtext twee source. It colors:
+Syntax highlighting, auto-closing pairs, and snippets for Subtext
+twee source. It colors:
 
 - **Passage headers** — `:: name [tags]`, with `speaker-*` and `thread-*` tags distinguished from other tags
 - **Directives** — `[timestamp …]`, `[system …]`, `[voice …]`, `[sound …]`, `[location …]`, `[react …]`, `[deliver …]`, `[then …]`, `[tombstone]`, including quoted passage names and the `in 2s` / `in 500ms` delay clause
@@ -8,6 +9,25 @@ Syntax highlighting for Subtext twee source. It colors:
 - **Templates** — `<% … %>` and `<%= … %>` highlighted as embedded JavaScript
 - **Special passages** — `Story JavaScript [script]` as JavaScript, `[stylesheet]` passages as CSS, `StoryData` as JSON
 - **Comments** — `/* … */` and line-leading `//`, plus `[text]{.class}` span shorthand
+
+## Auto-closing and snippets
+
+Typing `<%` inserts the closing ` %>` with the cursor between them,
+and brackets auto-close as you type — `[[` nests to `[[]]` with the
+cursor in the middle, and a single `[` (for a directive) closes to
+`[]`. Like all VS Code auto-closing, this triggers before whitespace,
+a closing bracket, or the end of a line — not in the middle of a word.
+
+Snippets cover the whole design language: type a prefix and accept
+the suggestion (or press `Ctrl+Space`), then tab through the blanks.
+
+| prefix | inserts |
+| --- | --- |
+| `passage` | `:: name [speaker-1]` |
+| `link` / `send` | `[[label->target]]`, with or without `(send: …)` |
+| `then` / `then-in` | `[then passage]`, `[then passage in 2s]` |
+| `timestamp` `system` `deliver` `sound` `voice` `location` `react` `tombstone` | the matching directive |
+| `template` / `print` | `<% code %>`, `<%= expression %>` |
 
 ## Install
 

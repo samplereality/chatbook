@@ -860,6 +860,8 @@ Players never see any of this: without one of the four switches above, the debug
 
 The repository ships a VS Code extension with syntax highlighting for Subtext twee source, in [`editor/vscode-subtext`](editor/vscode-subtext). It colors passage headers (with `speaker-*` and `thread-*` tags distinguished), every directive — including quoted passage names and the `in 2s` delay clause on `[then …]` — reply pills with their `photo:`/`react:`/`input:`/`timeout:` kinds and `(send: …)` text, and comments; `<% %>` templates highlight as embedded JavaScript, and `Story JavaScript`, `[stylesheet]`, and `StoryData` passages as JavaScript, CSS, and JSON.
 
+It also auto-closes as you type — `<%` inserts the closing `%>`, `[[` nests to `[[]]`, a lone `[` closes for directives — and ships snippets for the whole design language: `then`, `deliver`, `timestamp`, `link`, `send`, `template`, and the rest, each with tab-through blanks. The extension's README lists them all.
+
 To install, copy the folder into VS Code's extensions directory and reload:
 
 ```sh
@@ -1229,7 +1231,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8.1
 
-- **VS Code syntax highlighting.** The repository now ships an editor extension for Subtext twee source — passage headers, directives (with the `[then …]` delay clause and quoted names), reply pills and their kinds, `(send: …)` text, comments, and embedded JavaScript/CSS/JSON in the special passages. See [Editor support](#editor-support).
+- **A VS Code extension.** Syntax highlighting for Subtext twee source — passage headers, directives (with the `[then …]` delay clause and quoted names), reply pills and their kinds, `(send: …)` text, comments, and embedded JavaScript/CSS/JSON in the special passages — plus auto-closing pairs (`<%` → `%>`, `[[` → `]]`) and snippets for the design language. See [Editor support](#editor-support).
 - **Fixed: a cross-thread link didn't move the view.** The docs promised that a link to a passage in another conversation pulls the player there; in practice the passage landed off-screen and announced itself with a notification banner. A player-chosen advance — a text pill, reaction, photo, location, free-text reply, or timed response — now switches the view to the target's thread at the moment of the tap, so the typing indicator and arrival play out where the player is watching. Autonomous arrivals (`[deliver]`, chains into another thread) still notify instead. See [Multiple conversations](#multiple-conversations).
 - **Word counts.** The debug panel's header shows the current passage's word count, and the story check opens with the piece's total words across all content passages. Counts cover readable text — prose, pill labels, `(send: …)` text — and exclude code, comments, directives, and markup. Also `story.wordCount()` / `story.wordCount('passage name')`. See [Debug mode](#debug-mode).
 
