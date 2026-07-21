@@ -988,6 +988,13 @@ Object.assign(Story.prototype, {
 			this.state.lastChoice = chosen;
 		}
 
+		// the choice itself is a timeline moment: replaying it restores
+		// lastChoice and timedOut mid-replay (templates that captured
+		// them re-run with the right values), and an empty (send:)
+		// choice keeps its undo checkpoint across reloads
+
+		this.timeline.push(chosen !== '' ? { t: 'c', l: chosen } : { t: 'c' });
+
 		/**
 		 Triggered whenever the player picks a reply pill (or code calls
 		 story.choose). detail: { label, sent, target, story }.
@@ -1290,11 +1297,19 @@ Object.assign(Story.prototype, {
 			}
 		}
 
-		// incoming-message effects (skipped while replaying a save)
+		// message-arrival effects (skipped while replaying a save):
+		// an incoming speaker sounds like receiving; a speaker-you
+		// passage is the player-character texting, so it sounds like
+		// sending — same as a tapped reply
 
-		if (!opts.instant && speaker && speaker !== 'you') {
-			this.playSound('receive');
-			this.notifyTitle();
+		if (!opts.instant && speaker) {
+			if (speaker === 'you') {
+				this.playSound('send');
+			}
+			else {
+				this.playSound('receive');
+				this.notifyTitle();
+			}
 		}
 
 		if (opts.record !== false) {
@@ -2273,6 +2288,7 @@ Object.assign(Story.prototype, {
 		this.clearUserResponses();
 
 		this.state.timedOut = true;
+		this.timeline.push({ t: 'c', to: 1 });
 
 		if (offer.text) {
 			this.showUserBubble(offer.text);
@@ -4681,106 +4697,157 @@ Object.assign(Story.prototype, {
 				return;
 			}
 
-			var threadId = story.getPassageThread(passage);
-			var log = story.logFor(threadId);
-			var previousPassage = window.passage;
+			story.seedPassage(passage);
+		});
 
-			window.passage = passage;
-			passage.links = [];
+		this._seeding = false;
+		this.renderInbox();
+	},
 
-			var html;
+	/**
+	 Renders one seed passage into its thread as read history. The
+	 shared engine behind seedThreads() and reseedThread().
+	**/
 
-			try {
-				html = passage.render();
-			}
-			catch (error) {
-				window.passage = previousPassage;
-				story.showError(
-					story.errorMessage.replace('%s', error.message)
-				);
-				return;
-			}
+	seedPassage: function(passage) {
+		var story = this;
+		var threadId = story.getPassageThread(passage);
+		var log = story.logFor(threadId);
+		var previousPassage = window.passage;
 
+		window.passage = passage;
+		passage.links = [];
+
+		var html;
+
+		try {
+			html = passage.render();
+		}
+		catch (error) {
 			window.passage = previousPassage;
+			story.showError(
+				story.errorMessage.replace('%s', error.message)
+			);
+			return;
+		}
 
-			// a [react …] in a seed is an old tapback: it lands on the
-			// previous seeded message from the other side, once that
-			// message is in the log. [deliver …] means nothing in
-			// history and is dropped.
+		window.passage = previousPassage;
 
-			var reactions = [];
+		// a [react …] in a seed is an old tapback: it lands on the
+		// previous seeded message from the other side, once that
+		// message is in the log. [deliver …] means nothing in
+		// history and is dropped.
 
-			html = html
-				.replace(
-					/<div class="chat-react" data-emoji="([^"]*)"><\/div>/g,
-					function(match, emoji) {
-						reactions.push(template.unescapeHtml(emoji));
-						return '';
-					}
-				)
-				.replace(
-					/<div class="chat-deliver" data-passage="[^"]*"><\/div>/g,
-					''
-				);
+		var reactions = [];
 
-			var speaker = story.getPassageSpeaker(passage);
-			var nodes = story.buildPassageElement(passage, speaker, html);
-
-			nodes.forEach(function(node) {
-				node.classList.add('no-anim');
-				node.classList.add('is-history');
-				story.applyGrouping(node, log);
-				log.appendChild(node);
-			});
-
-			reactions.forEach(function(emoji) {
-				var selector =
-					speaker === 'you'
-						? '.chat-passage-wrapper:not([data-speaker="you"])'
-						: '.chat-passage-wrapper[data-speaker="you"]';
-				var targets = log.querySelectorAll(selector);
-				var target = targets[targets.length - 1];
-
-				if (target) {
-					story.attachReaction(target, emoji);
+		html = html
+			.replace(
+				/<div class="chat-react" data-emoji="([^"]*)"><\/div>/g,
+				function(match, emoji) {
+					reactions.push(template.unescapeHtml(emoji));
+					return '';
 				}
-			});
+			)
+			.replace(
+				/<div class="chat-deliver" data-passage="[^"]*"><\/div>/g,
+				''
+			);
 
-			// a seeded player message honors the receipt tags: `unread`
-			// leaves it on Delivered, `failed` on Not Delivered, `read`
-			// on Read — an old message that never got an answer
+		var speaker = story.getPassageSpeaker(passage);
+		var nodes = story.buildPassageElement(passage, speaker, html);
 
-			if (speaker === 'you') {
-				var status =
-					passage.tags.indexOf('failed') > -1
-						? 'failed'
-						: passage.tags.indexOf('unread') > -1
-							? 'delivered'
-							: passage.tags.indexOf('read') > -1
-								? 'read'
-								: null;
+		nodes.forEach(function(node) {
+			node.classList.add('no-anim');
+			node.classList.add('is-history');
+			story.applyGrouping(node, log);
+			log.appendChild(node);
+		});
 
-				if (status) {
-					var wrapper = nodes.find(function(node) {
-						return node.classList.contains(
-							'chat-passage-wrapper'
-						);
-					});
+		reactions.forEach(function(emoji) {
+			var selector =
+				speaker === 'you'
+					? '.chat-passage-wrapper:not([data-speaker="you"])'
+					: '.chat-passage-wrapper[data-speaker="you"]';
+			var targets = log.querySelectorAll(selector);
+			var target = targets[targets.length - 1];
 
-					if (wrapper) {
-						story.attachReceipt(
-							wrapper,
-							wrapper.querySelector('.chat-bubbles'),
-							{ status: status }
-						);
-					}
+			if (target) {
+				story.attachReaction(target, emoji);
+			}
+		});
+
+		// a seeded player message honors the receipt tags: `unread`
+		// leaves it on Delivered, `failed` on Not Delivered, `read`
+		// on Read — an old message that never got an answer
+
+		if (speaker === 'you') {
+			var status =
+				passage.tags.indexOf('failed') > -1
+					? 'failed'
+					: passage.tags.indexOf('unread') > -1
+						? 'delivered'
+						: passage.tags.indexOf('read') > -1
+							? 'read'
+							: null;
+
+			if (status) {
+				var wrapper = nodes.find(function(node) {
+					return node.classList.contains(
+						'chat-passage-wrapper'
+					);
+				});
+
+				if (wrapper) {
+					story.attachReceipt(
+						wrapper,
+						wrapper.querySelector('.chat-bubbles'),
+						{ status: status }
+					);
 				}
 			}
+		}
 
-			// old messages order the inbox (and reveal their thread)
-			// but are already read: no badge, no banner
+		// old messages order the inbox (and reveal their thread)
+		// but are already read: no badge, no banner
 
-			story.bumpThreadActivity(threadId);
+		story.bumpThreadActivity(threadId);
+	},
+
+	/**
+	 Re-renders a conversation's seeded history with CURRENT story
+	 state. Seeds render once, at boot — before the player has chosen
+	 anything — so a seed that interpolates state assigned later
+	 (an echo of the player's reply, <%= s.renReply %>) renders empty.
+	 Once the state exists, reseed the thread: its seed passages
+	 re-render in place, in their original order, values filled in.
+
+	 The transcript is rebuilt from the thread's seeds alone, so call
+	 it BEFORE anything else lands in the conversation — in the
+	 disposable-intro pattern, at the pivot, ahead of the badge-bait
+	 delivery. Anything non-seed already in the log is discarded.
+	 Call it from a passage template so it replays on save/restore:
+
+	   <% story.reseedThread('family') %>
+	**/
+
+	reseedThread: function(threadId) {
+		if (!this.multiThread) {
+			return;
+		}
+
+		var story = this;
+
+		this.logFor(threadId).textContent = '';
+		this._seeding = true;
+
+		this.passages.forEach(function(passage) {
+			if (
+				passage &&
+				passage.tags.indexOf('seed') > -1 &&
+				story.getPassageThread(passage) === threadId
+			) {
+				story.seedPassage(passage);
+			}
 		});
 
 		this._seeding = false;
@@ -5649,9 +5716,14 @@ Object.assign(Story.prototype, {
 			this.timeline.push({ t: 'd', id: passage.id });
 		}
 
-		if (!opts.instant && !quiet && speaker && speaker !== 'you') {
-			this.playSound('receive');
-			this.notifyTitle();
+		if (!opts.instant && !quiet && speaker) {
+			if (speaker === 'you') {
+				this.playSound('send');
+			}
+			else {
+				this.playSound('receive');
+				this.notifyTitle();
+			}
 		}
 
 		// a delivered passage that offers reply pills carries the
@@ -6288,7 +6360,7 @@ Object.assign(Story.prototype, {
 
 			var story = this;
 
-			timeline.forEach(function(entry) {
+			timeline.forEach(function(entry, entryIndex) {
 				// a replayed passage's template re-runs its side effects,
 				// re-arming any story.showDelayed() chain it started. The
 				// timeline already holds everything that arrived before
@@ -6298,9 +6370,35 @@ Object.assign(Story.prototype, {
 
 				story.cancelTimers();
 
+				// a choice entry: its undo checkpoint, plus the trackers
+				// that templates rendering mid-replay depend on —
+				// lastChoice and timedOut are only ever set by live
+				// play, so the replay re-establishes them here
+
+				if (entry.t === 'c') {
+					story.pushCheckpoint();
+					story.state.timedOut = !!entry.to;
+
+					if (entry.l) {
+						story.state.lastChoice = entry.l;
+					}
+
+					story.timeline.push(
+						entry.l
+							? { t: 'c', l: entry.l }
+							: entry.to
+								? { t: 'c', to: 1 }
+								: { t: 'c' }
+					);
+					return;
+				}
+
 				// every player move gets its checkpoint back, so undo
 				// keeps working across reloads (state is mid-rebuild
-				// here, exactly as it was when the move was made)
+				// here, exactly as it was when the move was made). A
+				// bubble right after a choice entry shares the choice's
+				// checkpoint; saves from before choice entries existed
+				// checkpoint at the bubble, as they always did.
 
 				if (
 					entry.t === 'u' ||
@@ -6308,7 +6406,12 @@ Object.assign(Story.prototype, {
 					entry.t === 'l' ||
 					entry.t === 'r'
 				) {
-					story.pushCheckpoint();
+					if (
+						entryIndex === 0 ||
+						timeline[entryIndex - 1].t !== 'c'
+					) {
+						story.pushCheckpoint();
+					}
 				}
 
 				var receipt = entry.r
@@ -6654,7 +6757,7 @@ Object.assign(Story.prototype, {
 
 		while (
 			prefix.length &&
-			'uilr'.indexOf(prefix[prefix.length - 1].t) > -1
+			'uilrc'.indexOf(prefix[prefix.length - 1].t) > -1
 		) {
 			prefix.pop();
 		}
@@ -7016,6 +7119,17 @@ Object.assign(Story.prototype, {
 		if (edge.kind === 'text' && edge.display.trim() !== '') {
 			this.state.lastChoice = edge.display.trim();
 		}
+
+		// the same choice entry a live tap records, so a fast-forwarded
+		// timeline replays with the right trackers
+
+		this.timeline.push(
+			edge.kind === 'timeout'
+				? { t: 'c', to: 1 }
+				: edge.display.trim() !== ''
+					? { t: 'c', l: edge.display.trim() }
+					: { t: 'c' }
+		);
 
 		if (edge.kind === 'timeout') {
 			dispatch('timeout', {
@@ -7662,6 +7776,15 @@ Object.assign(Story.prototype, {
 				}
 				else if (entry.t === 'u') {
 					text = 'you: ' + brief(entry.text);
+				}
+				else if (entry.t === 'c') {
+					text =
+						'chose: ' +
+						(entry.l
+							? brief(entry.l)
+							: entry.to
+								? '(timed out)'
+								: '(continue)');
 				}
 				else {
 					text = '[' + entry.t + ']';

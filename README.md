@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.8.14"
+  "format-version": "2.8.15"
 }
 ```
 
@@ -816,7 +816,7 @@ A complete example is [`docs/subtext-inbox-demo.twee`](docs/subtext-inbox-demo.t
 
 ### Notifications
 
-- `story.config.sounds = true` enables subtle synthesized send/receive sounds (no audio files needed). Browsers allow sound only after the player's first interaction, so the very first messages are always silent.
+- `story.config.sounds = true` enables subtle synthesized send/receive sounds (no audio files needed). An incoming speaker's message plays the receive sound; the send sound plays when the player taps a reply **and** when a `speaker-you` passage shows or delivers — the player-character texting sounds like sending, which keeps a montage that mixes speakers audible on every beat. Replays, seeds, and `quiet` deliveries stay silent. Browsers allow sound only after the player's first interaction, so the very first messages are always silent.
 - While the tab is hidden, incoming messages update the title to `(2) Your Story Name` and it resets when the player returns (`story.config.titleNotifications`, on by default).
 
 ### Page chrome and menus
@@ -1039,6 +1039,7 @@ Every public `story.*` method, alphabetically — each links to the section that
 | `renameThread(id, name)` | Change a conversation's display name mid-story | [Multiple conversations](#multiple-conversations) |
 | `revealThread(id)` | Bring a hidden thread into the inbox | [Multiple conversations](#multiple-conversations) |
 | `concealThread(id)` | Remove a conversation from the inbox entirely (not the Trash) | [Multiple conversations](#multiple-conversations) |
+| `reseedThread(id)` | Re-render a thread's seeded history with current state | [Disposable intro conversations](#disposable-intro-conversations) |
 | `save()` / `restore(hash)` | Write progress to the URL / replay a save | [Saving](#saving) |
 | `setHeader(title, subtitle)` | Repurpose the header mid-story | [Page chrome and menus](#page-chrome-and-menus) |
 | `setMenu(html, title)` | Fill (and retitle) the menu dialog | [Page chrome and menus](#page-chrome-and-menus) |
@@ -1196,6 +1197,24 @@ Three conversations. One family. The phone remembers more than you do.
 
 The `[deliver]` target is tagged `quiet`, so it lands silently with just an unread badge — each real thread now sits in the inbox wearing a badge, its seeds waiting underneath. The intro threads are gone (see the [three rules](#multiple-conversations) for `concealThread`), and the [exploration gate](#gate-the-story-on-exploration-not-a-timer) below pairs naturally with what happens next.
 
+**Echoing the player's replies.** Seeds render once, at boot — before the player has chosen anything — so a seed that interpolates a variable assigned later (`<%= s.renReply %>`) renders empty at first. Write the echo as an ordinary seed anyway, at its natural place in the thread's history (an empty seed renders nothing, so there's no gap):
+
+```
+:: echo ren reply [thread-ren speaker-you seed]
+<%= s.renReply %>
+```
+
+Capture the reply during the intro (`<% s.renReply = s.lastChoice %>`), then have the pivot re-render the thread's seeded history with current state:
+
+```
+<% story.concealThread('ren_intro'); story.reseedThread('ren'); %>
+[deliver ren catchup]
+```
+
+`story.reseedThread(id)` rebuilds the conversation from its seed passages alone — original order, values filled in — so the echoed exchange can sit *anywhere* in the history, not just at the end. Two rules: call it before anything else lands in the thread (above: before the badge-bait delivery — anything non-seed already in the log is discarded), and call it from a passage template so it replays on save/restore. The replay interpolates correctly because choices are timeline moments: `s.lastChoice` is restored before the templates that captured it re-run.
+
+(If the echoed exchange is the *newest* thing in the thread rather than mid-history, `quiet-read` deliveries from the pivot work too — deliveries render with live state and append in order.)
+
 ### Gate the story on exploration, not a timer
 
 After an opening sequence you might drop the player at the inbox and want them to browse the conversations and their [seeds](#multiple-conversations) before the story resumes — without a "go read your messages" prompt, and without a fixed timer that fires whether they've looked or not. The [`threadopened` event](#events) is the hook: it fires when the player opens a conversation (navigation, not a choice), so you can track *which* threads they've pressed into and resume once they've explored enough. Because you record the exploration in story state, it saves and restores for free; because you key it by thread id, re-opening the same one doesn't double-count. (Note `story.state` here, not `s` — the `s` shorthand exists only inside `<% %>` templates. And grab `story.state` fresh inside each listener call, as below, rather than once at the top of your Story JavaScript: the state object is replaced wholesale on restore and undo, so a reference captured at load time goes stale.)
@@ -1317,6 +1336,12 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.8.15
+
+- **`story.reseedThread(id)`** re-renders a conversation's seeded history with *current* story state, in the seeds' original order. Built for echoing the player's replies into a fuller thread: write the echo as a normal seed (`<%= s.renReply %>` — it renders empty at boot, invisibly), and reseed the thread from the pivot once the value exists. The echo lands at its authored position in the history, not appended. Call it before anything non-seed lands in the thread, and from a passage template so it replays. See the [disposable intro conversations](#disposable-intro-conversations) recipe.
+- **Fixed: templates that captured a choice re-rendered wrong on restore.** `s.lastChoice` and `s.timedOut` were only ever set by live play, so a template that read them (`<% s.renReply = s.lastChoice %>`) re-ran with stale values while a save replayed — anything rendered from the captured value came back empty or wrong. Choices are now first-class timeline moments: the replay restores both trackers before re-running dependent templates, empty `(send:)` choices keep their undo checkpoint across reloads, and the debug timeline lists them ("chose: …"). This is what makes the [reply-echo pattern](#disposable-intro-conversations) — re-printing the player's intro replies in a fuller thread via `quiet-read` deliveries — survive save/restore.
+- **`speaker-you` passages play the send sound.** Authored player-character messages used to show silently — the send sound only accompanied an actual tapped reply. A `speaker-you` passage (shown or delivered) now sounds like sending, the symmetric counterpart of an incoming speaker's receive sound, so a montage that mixes speakers is audible on every beat. Replays, seeds, and `quiet` deliveries stay silent as before. See [Notifications](#notifications).
 
 ### Version 2.8.14
 

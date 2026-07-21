@@ -1473,6 +1473,89 @@ async function run() {
 			soundCue.noEmptyBubble
 	);
 
+	// a speaker-you passage is the player-character texting: it plays
+	// the send sound (an incoming speaker plays receive) — and stays
+	// silent on save replays, like every arrival effect
+	check(
+		'a speaker-you passage plays the send sound, silent on replay',
+		await page.evaluate(() => {
+			const before = window.story.saveHash();
+			const played = [];
+			const orig = window.story.playSound;
+
+			window.story.playSound = (name) => played.push(name);
+			window.story.passages.push(
+				new window.Passage(9978, 'you-note', ['speaker-you'], 'on my way')
+			);
+			window.story.show('you-note');
+
+			const live = played.slice();
+
+			// restoring the pre-check save also proves replays are
+			// silent, and puts the transcript back as it was
+			window.story.restore(before);
+
+			const replayed = played.slice(live.length);
+
+			window.story.playSound = orig;
+			window.story.passages.length -= 1;
+
+			return (
+				live.indexOf('send') > -1 &&
+				live.indexOf('receive') === -1 &&
+				replayed.length === 0
+			);
+		})
+	);
+
+	// choices are timeline moments: a replay restores lastChoice before
+	// re-running the templates that captured it, so text interpolated
+	// from a choice survives save/restore
+	await page.evaluate(() => {
+		window.__preChoice = window.story.saveHash();
+		window.__preLen = window.story.passages.length;
+		// id-indexed: the replay resolves timeline entries by
+		// passages[id], so the index must match the id
+		window.story.passages[9977] = new window.Passage(
+			9977,
+			'echo-target',
+			['speaker-2'],
+			'you said <%= s.lastChoice %>'
+		);
+		window.story.choose('echo-target', '', 'sure thing');
+	});
+	await page.waitForFunction(
+		() =>
+			Array.from(document.querySelectorAll('#phistory .chat-passage')).some(
+				(b) => b.textContent.trim() === 'you said sure thing'
+			),
+		null,
+		{ timeout: 15000 }
+	);
+	check(
+		'a choice replays with lastChoice intact for mid-replay templates',
+		await page.evaluate(() => {
+			const texts = () =>
+				Array.from(
+					document.querySelectorAll('#phistory .chat-passage')
+				).filter(
+					(b) => b.textContent.indexOf('you said') === 0
+				).map((b) => b.textContent.trim());
+
+			window.story.restore(window.story.saveHash());
+
+			const replayed = texts();
+
+			window.story.restore(window.__preChoice);
+			window.story.passages.length = window.__preLen;
+
+			return (
+				replayed.length === 1 &&
+				replayed[0] === 'you said sure thing'
+			);
+		})
+	);
+
 	console.log('deleted messages');
 
 	// redactMessage tombstones in place — the node is never removed,
@@ -3102,6 +3185,45 @@ async function run() {
 				text.indexOf('## Mom') > -1 &&
 				text.indexOf('**Mom:**') > -1
 			);
+		})
+	);
+
+	// reseedThread: a thread's seeds re-render with CURRENT state, so
+	// an echo seed can interpolate a value assigned mid-story — at its
+	// authored position in the history, not appended
+	check(
+		'reseedThread fills a late-bound echo seed in place',
+		await inboxPage.evaluate(() => {
+			const id = window.story.passages.length + 50;
+
+			window.story.state.echoReply = 'sounds good';
+			window.story.passages[id] = new window.Passage(
+				id,
+				'fam-echo-probe',
+				['thread-family', 'speaker-you', 'seed'],
+				'<%= s.echoReply %>'
+			);
+			window.story.reseedThread('family');
+
+			const log = document.querySelector(
+				'.thread-log[data-thread="family"]'
+			);
+			const filled = Array.from(
+				log.querySelectorAll('.chat-passage')
+			).some((b) => b.textContent.trim() === 'sounds good');
+			const outgoing = Array.from(
+				log.querySelectorAll('.chat-passage-wrapper')
+			).some(
+				(w) =>
+					w.textContent.indexOf('sounds good') > -1 &&
+					w.getAttribute('data-speaker') === 'you'
+			);
+
+			// drop the probe seed and rebuild the thread's history
+			window.story.passages.length = id;
+			window.story.reseedThread('family');
+
+			return filled && outgoing;
 		})
 	);
 
