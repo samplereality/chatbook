@@ -1644,6 +1644,20 @@ async function run() {
 		})
 	);
 
+	// a frozen mid-chain rewind has a play button: resume re-arms the
+	// chain from the latest content on screen
+	check(
+		'resume plays a frozen chain onward',
+		await debugPage.evaluate(() => window.story.debugResume() === true)
+	);
+	await debugPage.waitForSelector('.user-response:has-text("and then?")', {
+		timeout: 15000
+	});
+	check(
+		'resume is a no-op when pills are the way forward',
+		await debugPage.evaluate(() => window.story.debugResume() === false)
+	);
+
 	// story.after is a TRACKED timer: it registers with the runtime,
 	// so a rewind (or undo/jump/restore) sweeps it — unlike a raw
 	// window.setTimeout, which would fire into whatever the player
@@ -2898,6 +2912,47 @@ async function run() {
 			window.removeEventListener('threadopened', handler);
 
 			return !fired && window.story._viewedThread === 'mom';
+		})
+	);
+
+	// the event fires from a real inbox-row tap, not just the API
+	check(
+		'tapping an inbox row fires threadopened',
+		await inboxPage.evaluate(() => {
+			window.story.openInbox();
+
+			let seen = null;
+			const handler = (e) => {
+				seen = e.detail.thread;
+			};
+
+			window.addEventListener('threadopened', handler);
+			document
+				.querySelector('.inbox-row:not(.inbox-row--trash)')
+				.click();
+			window.removeEventListener('threadopened', handler);
+
+			return seen !== null && window.story._viewedThread === seen;
+		})
+	);
+
+	// the inbox screen is titled by config.inboxTitle, not the story
+	check(
+		'the inbox header shows config.inboxTitle',
+		await inboxPage.evaluate(() => {
+			window.story.openInbox();
+
+			const def = document.getElementById('ptitle').textContent;
+
+			window.story.config.inboxTitle = 'Phone';
+			window.story.openInbox();
+
+			const custom = document.getElementById('ptitle').textContent;
+
+			window.story.config.inboxTitle = 'Messages';
+			window.story.openInbox();
+
+			return def === 'Messages' && custom === 'Phone';
 		})
 	);
 

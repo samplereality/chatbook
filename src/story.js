@@ -369,6 +369,9 @@ var Story = function() {
 		threadIdleHint: 'Nothing to say right now',
 		/* label on the inbox's Trash section (localize here) */
 		trashLabel: 'Trash',
+		/* the header title while the inbox screen is up (a thread
+		   screen shows its contact's name instead) */
+		inboxTitle: 'Messages',
 		/* mark the inbox row of the conversation awaiting a reply */
 		replyIndicator: true,
 		/* its screen-reader label (localize here) */
@@ -4901,6 +4904,13 @@ Object.assign(Story.prototype, {
 
 		if (!opts.silent) {
 			dispatch('threadopened', { thread: threadId, story: this });
+
+			// listeners often record exploration in story.state; a
+			// passage show is what usually persists state, so save
+			// here too or a reload would lose anything tracked
+			// between passages
+
+			this.persist();
 		}
 	},
 
@@ -4944,7 +4954,7 @@ Object.assign(Story.prototype, {
 		this.updateInboxButton();
 		document.body.classList.add('screen-inbox');
 		this.clearThreadSubtitle();
-		this.dom.title.textContent = this.name;
+		this.dom.title.textContent = this.config.inboxTitle;
 		this.renderInbox();
 		this.dom.panel.scrollTop = 0;
 	},
@@ -6582,6 +6592,56 @@ Object.assign(Story.prototype, {
 	 side effects re-run exactly as they did the first time.
 	**/
 
+	/**
+	 Continues a chain that a rewind froze. Rewinding lands "paused
+	 right there": pending showDelayed timers are deliberately dropped
+	 so the future doesn't play itself back in — which leaves mid-chain
+	 moments with no pills and nothing in flight. This is that pause's
+	 play button: it re-arms the chain by firing the chain edges of the
+	 latest content on screen (the last shown or delivered passage),
+	 with natural pacing. Returns true if anything was armed; a no-op
+	 while pills are the way forward or a chain is already in flight.
+	 Reads written edges, so a chain fired from a computed template
+	 name can't be resumed this way.
+	**/
+
+	debugResume: function() {
+		if (this.timers.length) {
+			return false; // something is already in flight
+		}
+
+		var last = null;
+
+		for (var i = this.timeline.length - 1; i >= 0; i--) {
+			var entry = this.timeline[i];
+
+			if (entry.t === 'p' || entry.t === 'd') {
+				last = this.passage(entry.id);
+				break;
+			}
+		}
+
+		if (!last) {
+			return false;
+		}
+
+		var story = this;
+		var armed = false;
+
+		this.passageEdges(last.source).forEach(function(edge) {
+			if (
+				edge.kind === 'chain' &&
+				edge.target.indexOf('<%') === -1 &&
+				story.passage(edge.target)
+			) {
+				story.showDelayed(edge.target);
+				armed = true;
+			}
+		});
+
+		return armed;
+	},
+
 	debugRewind: function(count) {
 		var prefix = this.timeline.slice(0, count);
 
@@ -7434,8 +7494,9 @@ Object.assign(Story.prototype, {
 			'<div class="debug-row">' +
 			'<select id="debug-timeline" aria-label="Timeline"></select>' +
 			'<button type="button" id="debug-rewind">rewind</button>' +
+			'<button type="button" id="debug-resume">▶ resume</button>' +
 			'</div>' +
-			'<p class="debug-note">pick a moment, rewind to it — paused right there</p>' +
+			'<p class="debug-note">pick a moment, rewind to it — paused right there · resume plays a frozen chain onward</p>' +
 			'</details>' +
 			'<details open><summary>Jump to passage</summary>' +
 			'<div class="debug-row">' +
@@ -7746,6 +7807,10 @@ Object.assign(Story.prototype, {
 				refresh();
 			}
 		});
+		panel.querySelector('#debug-resume').addEventListener('click', function() {
+			story.debugResume();
+			refresh();
+		});
 		panel.querySelector('#debug-jump').addEventListener('click', function() {
 			if (passageList.value) {
 				story.debugJump(passageList.value);
@@ -7775,6 +7840,11 @@ Object.assign(Story.prototype, {
 
 		window.addEventListener('showpassage:after', refresh);
 		window.addEventListener('restore:after', refresh);
+
+		// state can change between passages too — a threadopened
+		// listener writing story.state.seen should show up live
+
+		window.addEventListener('threadopened', refresh);
 		window.addEventListener('showpassage:after', function() {
 			if (!panel.hidden) {
 				buildPassageList();
