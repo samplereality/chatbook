@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.8.14"
+  "format-version": "2.8.15"
 }
 ```
 
@@ -1337,7 +1337,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Unreleased
+### Version 2.8.15
 
 - **`story.reseedThread(id)`** re-renders a conversation's seeded history with *current* story state, in the seeds' original order. Built for echoing the player's replies into a fuller thread: write the echo as a normal seed (`<%= s.renReply %>` — it renders empty at boot, invisibly), and reseed the thread from the pivot once the value exists. The echo lands at its authored position in the history, not appended. Call it before anything non-seed lands in the thread, and from a passage template so it replays. See the [disposable intro conversations](#disposable-intro-conversations) recipe.
 - **Fixed: templates that captured a choice re-rendered wrong on restore.** `s.lastChoice` and `s.timedOut` were only ever set by live play, so a template that read them (`<% s.renReply = s.lastChoice %>`) re-ran with stale values while a save replayed — anything rendered from the captured value came back empty or wrong. Choices are now first-class timeline moments: the replay restores both trackers before re-running dependent templates, empty `(send:)` choices keep their undo checkpoint across reloads, and the debug timeline lists them ("chose: …"). This is what makes the [reply-echo pattern](#disposable-intro-conversations) — re-printing the player's intro replies in a fuller thread via `quiet-read` deliveries — survive save/restore.
