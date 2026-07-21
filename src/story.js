@@ -5826,6 +5826,42 @@ Object.assign(Story.prototype, {
 	},
 
 	/**
+	 A tracked setTimeout: runs fn after ms, but the timer is registered
+	 with the runtime so time travel can cancel it. Use this instead of
+	 a bare window.setTimeout() inside passage templates — a raw timer is
+	 invisible to the runtime, so rewind, jump, play-to, undo, and
+	 restore cannot stop it, and it will fire (injecting whatever it
+	 does) wherever the player has since landed. To advance the story
+	 after a delay, prefer story.showDelayed(name, ms), which is tracked
+	 the same way; reach for after() for side effects like animating an
+	 aside's text. Returns the timer id (clearTimeout works on it too).
+
+	 Like showDelayed's timers, an after() scheduled from a passage
+	 template re-arms when that passage replays on restore, and is swept
+	 by cancelTimers() on any rewind — so it behaves consistently with
+	 the rest of the runtime's timing.
+	**/
+
+	after: function(ms, fn) {
+		var story = this;
+		var id = window.setTimeout(function() {
+			try {
+				fn();
+			}
+			catch (error) {
+				if (!story.ignoreErrors) {
+					story.showError(
+						story.errorMessage.replace('%s', error.message)
+					);
+				}
+			}
+		}, ms);
+
+		this.timers.push(id);
+		return id;
+	},
+
+	/**
 	 Appends a delayed passage's [timestamp ...] chips to its thread
 	 immediately, before the message "arrives"; showPassage later skips
 	 rendering the same chips. Bails on labels that need the template
@@ -7124,6 +7160,24 @@ Object.assign(Story.prototype, {
 				findings.push({
 					level: 'note',
 					message: 'nothing links to "' + p.name + '"',
+					passage: p.name
+				});
+			}
+		});
+
+		// raw timers in a template are invisible to the runtime: time
+		// travel (rewind, jump, undo, restore) can't cancel them, so
+		// one that shows or delivers a passage will fire into whatever
+		// the player rewound to. Point authors at the tracked forms.
+
+		content.forEach(function(p) {
+			if (/\b(?:window\.)?set(?:Timeout|Interval)\s*\(/.test(p.source)) {
+				findings.push({
+					level: 'note',
+					message:
+						'"' + p.name + '" uses a raw timer (setTimeout/' +
+						'setInterval); time travel can\'t cancel it — prefer ' +
+						'story.showDelayed() or story.after()',
 					passage: p.name
 				});
 			}

@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.8.12"
+  "format-version": "2.8.13"
 }
 ```
 
@@ -417,6 +417,21 @@ With no `in` clause each link in the chain paces itself like any reply: the typi
 If a passage name itself contains ` in `, quote it so the name and the delay clause can't be confused — `[then 'the walk in the park' in 2s]`. Single or double quotes work, `[deliver]` accepts them too, and quoting is always allowed even when there's no ambiguity.
 
 The directive is shorthand for `story.showDelayed(name, delay)`, which works anywhere story JavaScript runs — from a template when the target's name is computed at runtime (`<% story.showDelayed(s.nextScene) %>`), or from an event listener, where `story.showDelayed('Jo', 2000)` replaces Trialogue's old `_.delay(...)` idiom.
+
+**Use `showDelayed()`, not a raw `setTimeout()`, to advance the story.** The runtime keeps track of the timers `showDelayed()` arms, so time travel — [debug mode](#debug-mode)'s rewind and jump, plus undo and save/restore — can cancel them. A bare `window.setTimeout()` inside a passage template is invisible to the runtime: nothing can stop it, so a timer that shows or delivers a passage will fire into whatever the player has since rewound or jumped to. This surfaces two ways during debugging — an out-of-place message appearing from nowhere, and *missing reply pills* (the stray `show()` clears the pills the rewind just offered, and re-offers nothing when it lands in a thread the player isn't viewing). For timed side effects that *aren't* a story move — animating an aside's text, say — use `story.after(ms, fn)`, a tracked `setTimeout` that time travel sweeps the same way (the [story check](#debug-mode) flags raw timers with a note). This makes the pattern of a `Radio silence.` aside that mutates to `Three weeks pass.` and then chains onward safe to rewind through:
+
+```
+:: three weeks [aside-right aside-beats-1]
+<span id="gap">Radio silence.</span>
+
+<%
+story.after(2000, function () {
+  var el = document.getElementById('gap');
+  if (el) { el.textContent = 'Three weeks pass.'; }
+});
+story.showDelayed('back to it', 5000);
+%>
+```
 
 To let the *player* pace the montage instead — a beat between texts so each one can be read — put a silent pill between passages and tag each incoming passage `instant`, so tapping the pill lands the next message immediately, with no typing indicator:
 
@@ -856,7 +871,7 @@ A `🐛 debug` button appears in the corner; it opens a panel that stays open un
 - **Variables** — a live table of everything in `s`, refreshed as passages show, plus a console line that runs any JavaScript (`s.suspicion = 9`, `story.markRead()`, …).
 - **Timeline** — a dropdown of every moment so far; pick one and **rewind** to it. The conversation rebuilds up to that point by replaying it — then *pauses right there*, even mid-`showDelayed`-chain (pending chain timers are dropped, so the future doesn't immediately play itself back in). Rewinding to a player move ("you: …") lands just *before* the reply is sent — pills up, move un-made — so continuing from there, by tap or by play-to, never sends the same reply twice.
 - **Jump to passage** — a dropdown of every passage (alphabetical, current one selected; type while it's open to seek by name), with two ways to get there. **Play to** fast-forwards: it finds a route through the story's written link graph and plays it instantly — at each fork the pill that leads toward the target is tapped for you, so bubbles, state trackers, events, checkpoints, and history all fill in like a real playthrough (undo even steps back through the auto-made choices). **Jump** teleports instead: a clean transcript at the target with `s` kept. In multi-conversation stories both land you in the target's own thread — a thread tag is honored directly, and an untagged passage's thread is inferred from the nearest tagged passage that links to it. Play-to's route follows links as written — template conditions aren't evaluated when picking it, typed-input gates get a placeholder answer, and photo pills send the first image they offer — and when no written route exists it falls back to a jump and says so. A route that crosses a `[deliver]` renders the delivered message once, by the passage that sends it, and both jump and play-to land the view in the target's own conversation — even when the target is a delivery or side narration that never takes the story cursor. Also callable as `story.debugFastForward(name)`.
-- **Story check** — a static lint of the whole story: pill links to passages that don't exist, `[deliver]`/`[then]` and `showDelayed()`/`show()` names that don't resolve, `speaker-*` tags with no `StorySpeakers` profile, `thread-*` tags never declared in `StoryThreads`, passages nothing points to, and **dead ends** — passages that take the story cursor but offer no way forward (no reply pills, and no chain or delivery that eventually reaches choices). A dead end at the far end of a `showDelayed` chain is reported once, at the passage where the chain stops. Tag an intentional ending `End` and the dead-end check skips it; seeds and side content (linkless narration, delivery-only side texts) are exempt automatically. Each finding links to the offending passage. The check reads source without running it, so dynamic names (`<% %>`) are skipped rather than guessed at, and a link inside a template condition counts as an escape even if the condition could be false at runtime; a passage reached only through dynamic means can opt out of the orphan check with the `unlinked` tag. Also callable as `story.lint()` — it returns the findings as an array. The section opens with the piece's size: total words across all content passages. Counts cover what a player reads — message and narration prose, pill labels, `(send: …)` text — and skip code, comments, directive lines, and markup; text printed by templates at runtime can't be counted from source, so treat totals as close rather than exact. Also callable as `story.wordCount()` (the whole piece, as `{ words, passages }`) or `story.wordCount('passage name')` (one passage's count).
+- **Story check** — a static lint of the whole story: pill links to passages that don't exist, `[deliver]`/`[then]` and `showDelayed()`/`show()` names that don't resolve, `speaker-*` tags with no `StorySpeakers` profile, `thread-*` tags never declared in `StoryThreads`, passages nothing points to, and **dead ends** — passages that take the story cursor but offer no way forward (no reply pills, and no chain or delivery that eventually reaches choices). A dead end at the far end of a `showDelayed` chain is reported once, at the passage where the chain stops. Tag an intentional ending `End` and the dead-end check skips it; seeds and side content (linkless narration, delivery-only side texts) are exempt automatically. It also notes any passage that arms a raw `setTimeout`/`setInterval` — time travel can't cancel those, so prefer `story.showDelayed()` or `story.after()`. Each finding links to the offending passage. The check reads source without running it, so dynamic names (`<% %>`) are skipped rather than guessed at, and a link inside a template condition counts as an escape even if the condition could be false at runtime; a passage reached only through dynamic means can opt out of the orphan check with the `unlinked` tag. Also callable as `story.lint()` — it returns the findings as an array. The section opens with the piece's size: total words across all content passages. Counts cover what a player reads — message and narration prose, pill labels, `(send: …)` text — and skip code, comments, directive lines, and markup; text printed by templates at runtime can't be counted from source, so treat totals as close rather than exact. Also callable as `story.wordCount()` (the whole piece, as `{ words, passages }`) or `story.wordCount('passage name')` (one passage's count).
 - **Transcript** — one click flattens the visible conversation (every thread, chips and narration included) to a Markdown file and downloads it, useful for proofreading the story as prose. Also callable as `story.exportTranscript()`, which returns the Markdown string.
 - **Memory** — what the story has `remember()`ed across playthroughs, with a forget-all button.
 
@@ -1028,6 +1043,7 @@ Every public `story.*` method, alphabetically — each links to the section that
 | `setRestartDialog(html)` | Reword the restart confirmation | [Page chrome and menus](#page-chrome-and-menus) |
 | `show(name)` | Show a passage immediately | [Message chains and montages](#message-chains-and-montages) |
 | `showDelayed(name, delay)` | Show a passage after a delay (0 = instantly, no dots) | [Message chains and montages](#message-chains-and-montages) |
+| `after(ms, fn)` | A tracked `setTimeout` — time travel can cancel it | [Message chains and montages](#message-chains-and-montages) |
 | `showInboxButton()` / `hideInboxButton()` | Stage the inbox chevron's reveal | [Multiple conversations](#multiple-conversations) |
 
 ## Events
@@ -1299,6 +1315,10 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Version 2.8.13
+
+- **Fixed: a raw `setTimeout()` in a passage template survived time travel.** The runtime can only cancel the timers it arms itself (`showDelayed`, and now `after`); a bare `window.setTimeout()` in a template was invisible to it, so a timer that showed or delivered a passage kept firing into whatever the player had rewound or jumped to. This surfaced as two debugging symptoms with one cause: an out-of-place message appearing from nowhere, and reply pills going missing after a rewind or jump (the stray `show()` wiped the pills the time-travel had just offered). New `story.after(ms, fn)` is a tracked `setTimeout` that rewind, jump, undo, and restore all sweep, and the story check now notes raw timers. Use `showDelayed()` to advance the story and `after()` for timed side effects. See [Message chains and montages](#message-chains-and-montages).
 
 ### Version 2.8.12
 

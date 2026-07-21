@@ -1644,6 +1644,40 @@ async function run() {
 		})
 	);
 
+	// story.after is a TRACKED timer: it registers with the runtime,
+	// so a rewind (or undo/jump/restore) sweeps it — unlike a raw
+	// window.setTimeout, which would fire into whatever the player
+	// rewound to
+	check(
+		'story.after registers a timer the runtime can cancel',
+		await debugPage.evaluate(
+			() =>
+				new Promise((resolve) => {
+					let fired = false;
+
+					const before = window.story.timers.length;
+					window.story.after(120, () => {
+						fired = true;
+					});
+					const tracked =
+						window.story.timers.length === before + 1;
+
+					// cancelTimers is what every time-travel op calls
+					window.story.cancelTimers();
+
+					setTimeout(
+						() =>
+							resolve(
+								tracked &&
+									!fired &&
+									window.story.timers.length === 0
+							),
+						300
+					);
+				})
+		)
+	);
+
 	// a player move is not a resting point: rewinding to a "you: …"
 	// entry lands just BEFORE the reply is sent, pills re-offered —
 	// so continuing can never send the same reply twice
@@ -1918,6 +1952,32 @@ async function run() {
 			return (
 				deadEnds.length === 1 &&
 				deadEnds[0].passage === 'bait-dead'
+			);
+		})
+	);
+
+	// a raw timer in a passage template earns a note (time travel
+	// can't cancel it); story.after() and showDelayed() do not
+	check(
+		'story check notes raw setTimeout/setInterval, not the tracked forms',
+		await debugPage.evaluate(() => {
+			window.story.passages.push(
+				new window.Passage(9990, 'raw-timer-bait', ['speaker-2'], 'hi\n<% setTimeout(function(){ story.show("x"); }, 500); %>'),
+				new window.Passage(9991, 'tracked-timer', ['speaker-2'], 'hi\n<% story.after(500, function(){}); story.showDelayed("y", 500); %>')
+			);
+
+			const findings = window.story.lint();
+
+			window.story.passages.length -= 2;
+
+			const rawNotes = findings.filter(
+				(f) => f.message.indexOf('raw timer') > -1
+			);
+
+			return (
+				rawNotes.length === 1 &&
+				rawNotes[0].passage === 'raw-timer-bait' &&
+				rawNotes[0].level === 'note'
 			);
 		})
 	);
