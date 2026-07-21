@@ -1556,6 +1556,44 @@ async function run() {
 		})
 	);
 
+	// `||` splits passage text into separate bubbles, matching the
+	// (send: a || b) grammar — a mirrored reply renders the way it
+	// was sent
+	check(
+		'|| in passage text splits into separate bubbles',
+		await page.evaluate(() => {
+			const preLen = window.story.passages.length;
+			const id = preLen + 60;
+			const hash = window.story.saveHash();
+
+			window.story.state.mirrorReply =
+				'oh right || i will call tomorrow';
+			window.story.passages[id] = new window.Passage(
+				id,
+				'mirror-probe',
+				['speaker-2'],
+				'<%= s.mirrorReply %>'
+			);
+			window.story.show('mirror-probe');
+
+			const wrapper = Array.from(
+				document.querySelectorAll('#phistory .chat-passage-wrapper')
+			).pop();
+			const texts = Array.from(
+				wrapper.querySelectorAll('.chat-passage')
+			).map((b) => b.textContent.trim());
+
+			window.story.restore(hash);
+			window.story.passages.length = preLen;
+
+			return (
+				texts.length === 2 &&
+				texts[0] === 'oh right' &&
+				texts[1] === 'i will call tomorrow'
+			);
+		})
+	);
+
 	console.log('deleted messages');
 
 	// redactMessage tombstones in place — the node is never removed,

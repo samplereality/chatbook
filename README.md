@@ -56,7 +56,7 @@ Meet me at the docks in an hour?
 [[why the docks?]]
 ```
 
-- Each paragraph (blank-line separated) becomes its own bubble. To keep paragraph breaks *inside* one long bubble instead, tag the passage `one-bubble` — or, mid-passage, wrap just those paragraphs in an HTML block (markdown doesn't render inside raw HTML, so write the `<p>` tags yourself): `<div><p>first paragraph.</p><p>second paragraph.</p></div>` renders as a single bubble among normally split ones. (`story.config.splitBubbles = false` does one-bubble-per-passage story-wide.)
+- Each paragraph (blank-line separated) becomes its own bubble, and `||` inside a paragraph splits it further — the same separator a `(send: a || b)` label uses, so text stored with it renders the same multi-bubble way it was sent. To keep paragraph breaks *inside* one long bubble instead, tag the passage `one-bubble` — or, mid-passage, wrap just those paragraphs in an HTML block (markdown doesn't render inside raw HTML, so write the `<p>` tags yourself): `<div><p>first paragraph.</p><p>second paragraph.</p></div>` renders as a single bubble among normally split ones. (`story.config.splitBubbles = false` does one-bubble-per-passage story-wide.)
 - `[[links]]` become the player's quick-reply choices. The usual Twine link forms work: `[[display|target]]`, `[[display->target]]`, `[[target<-display]]`. A pill can also send different text than it shows — see [Reply pills and sent text](#reply-pills-and-sent-text).
 - A passage **without** a `speaker-` tag belongs to the narrator — see [Narration](#narration) for the ways it can be presented.
 - Speaker names get an avatar automatically (initial + a stable color derived from the name). Multi-word names use dashes: `speaker-happy-bot` displays as "happy bot".
@@ -517,6 +517,8 @@ An empty `(send:)` sends no bubble at all — the story just advances. (From cod
 ```
 [[what happened (send: ok || here's the thing || promise you won't be mad)->confession]]
 ```
+
+The separator means the same thing in passage text: a paragraph containing `||` renders as separate bubbles, so a sent string stored in a variable — `<%= s.reply %>` in a [seeded echo](#disposable-intro-conversations), say — reads back exactly the way it was sent. (`one-bubble` and `splitBubbles = false` suppress the split along with the paragraph one.)
 
 **Tracking which pill was tapped.** Every choice records its pill label in `s.lastChoice`, so several pills can share a target and the passage can still tell them apart:
 
@@ -1336,6 +1338,10 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Unreleased
+
+- **`||` splits passage text into separate bubbles.** The multi-bubble separator from `(send: a || b)` labels now works inside message text too: a paragraph containing `||` renders as separate bubbles. Built for mirrored replies — a multi-text send stored in a variable (`s.reply = 'ok || on my way'`) now reads back from a seed or delivery exactly the way it was sent, instead of rendering the pipes literally. `one-bubble` and `splitBubbles = false` suppress it along with the paragraph split. See [Reply pills and sent text](#reply-pills-and-sent-text).
 
 ### Version 2.8.15
 

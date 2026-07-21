@@ -1499,6 +1499,55 @@ Object.assign(Story.prototype, {
 		var single =
 			!this.config.splitBubbles ||
 			passage.tags.indexOf('one-bubble') > -1;
+
+		// `||` splits a message into separate bubbles inside passage
+		// text, exactly as it does in a (send: …) label — so a reply
+		// mirrored into a seed with the same separator renders the
+		// same multi-text way it was sent
+
+		if (!single) {
+			var splitBlocks = [];
+
+			blocks.forEach(function(block) {
+				var isPipedParagraph =
+					block.nodeType === Node.ELEMENT_NODE &&
+					block.tagName === 'P' &&
+					block.innerHTML.indexOf('||') > -1;
+				var isPipedText =
+					block.nodeType === Node.TEXT_NODE &&
+					block.textContent.indexOf('||') > -1;
+
+				if (!isPipedParagraph && !isPipedText) {
+					splitBlocks.push(block);
+					return;
+				}
+
+				var parts = (isPipedParagraph
+					? block.innerHTML
+					: block.textContent
+				).split(/\s*\|\|\s*/);
+
+				parts.forEach(function(part) {
+					if (part.trim() === '') {
+						return;
+					}
+
+					var p = document.createElement('p');
+
+					if (isPipedParagraph) {
+						p.innerHTML = part;
+					}
+					else {
+						p.textContent = part;
+					}
+
+					splitBlocks.push(p);
+				});
+			});
+
+			blocks = splitBlocks;
+		}
+
 		var bubbleBlocks = single ? [null] : blocks;
 		var index = 0;
 
