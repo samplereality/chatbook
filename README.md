@@ -705,6 +705,14 @@ unknown: Unknown Number; color: #52525e; hidden: true
 
 The thread appears the moment anything lands in it (a `[deliver]`, the story moving there, a seed) — or reveal it manually with `story.revealThread('unknown')`. Reveal state is derived from thread activity, so undo and save/restore handle it automatically.
 
+**`story.concealThread(id)` is the inverse:** it removes a conversation from the inbox entirely — not into the Trash, just gone, as if it had never spoken. The transcript is kept, so anything landing in the thread later (a `[deliver]`, `revealThread`) brings it back with its history intact, and undoing past the conceal brings it back too. Three rules for calling it:
+
+- **Call it from a passage template** — `<% story.concealThread('errand') %>` — so it replays on save and restore, like `renameThread`. (Declaring the thread `hidden: true` in `StoryThreads` as well makes the concealment doubly durable.)
+- **Call it from a passage *outside* the thread being concealed.** A message landing in a concealed conversation reveals it again, so a passage cannot conceal its own thread — the conceal would be undone the moment its own message arrives.
+- **Never conceal the conversation holding the story's pending choices** — the player would have no way to reach them.
+
+A `threadconcealed` event fires. See the [disposable intro conversations](#disposable-intro-conversations) recipe for the pattern this was built for.
+
 **Seeding old messages.** Tag passages `seed` and they render into their threads at story start: instant, already read, no badges or banners — pre-existing history. Seeds alternate speakers freely, so a whole past exchange works:
 
 ```
@@ -1013,6 +1021,7 @@ Every public `story.*` method, alphabetically — each links to the section that
 | `remember(key, value)` / `recall(key, fallback)` / `forget(key)` | Cross-playthrough memory (survives restart) | [Recipes](#remember-across-playthroughs) |
 | `renameThread(id, name)` | Change a conversation's display name mid-story | [Multiple conversations](#multiple-conversations) |
 | `revealThread(id)` | Bring a hidden thread into the inbox | [Multiple conversations](#multiple-conversations) |
+| `concealThread(id)` | Remove a conversation from the inbox entirely (not the Trash) | [Multiple conversations](#multiple-conversations) |
 | `save()` / `restore(hash)` | Write progress to the URL / replay a save | [Saving](#saving) |
 | `setHeader(title, subtitle)` | Repurpose the header mid-story | [Page chrome and menus](#page-chrome-and-menus) |
 | `setMenu(html, title)` | Fill (and retitle) the menu dialog | [Page chrome and menus](#page-chrome-and-menus) |
@@ -1046,6 +1055,7 @@ window.addEventListener('photosent', function (e) {
 | `timeout` | a response timer expires | `{ target, text, story }` |
 | `textinput` | the player sends free-text input | `{ text, target, story }` |
 | `threadarchived` | a conversation moves to the Trash | `{ thread, story }` |
+| `threadconcealed` | a conversation is removed from the inbox | `{ thread, story }` |
 | `threadrenamed` | a conversation's display name changes | `{ thread, name, story }` |
 | `threadrestored` | a conversation leaves the Trash | `{ thread, story }` |
 | `save` | progress is written to a save | `{ story }` |
@@ -1131,6 +1141,42 @@ window.addEventListener('choice', function (e) {
   gtag('event', 'reply', { label: e.detail.label });
 });
 ```
+
+### Disposable intro conversations
+
+A story that opens by introducing its cast one conversation at a time faces a spoiler problem: if the introductions play in each contact's real thread, the player is sitting on top of all that thread's [seeded history](#multiple-conversations) — history that should be a discovery for later, when they get to explore the inbox. The pattern: play each introduction in a stand-in thread, then dispose of it.
+
+In `StoryThreads`, declare each real thread alongside an intro twin with the *same display name* (declaring the twin `hidden: true` also makes its later concealment doubly durable):
+
+```
+:: StoryThreads
+ren: Ren
+ren_intro: Ren; hidden: true
+```
+
+Keep the inbox unreachable during the introductions (`story.config.inboxButton = false` in Story JavaScript), and play each one in its intro thread — the header says "Ren" either way, so the player can't tell:
+
+```
+:: ren says hi [thread-ren_intro speaker-ren]
+it's ren. the ONLY person in this family who answers texts
+
+[[noted (send:)->the pivot]]
+```
+
+Seed the real thread with its deep history **plus** `seed`-tagged copies of the intro texts, so the exchange the player just had is part of the record they'll find. Then the pivot passage — in another thread, or as narration — disposes of the intro threads, baits the real ones, and opens the inbox:
+
+```
+:: the pivot [meta-overlay]
+Three conversations. One family. The phone remembers more than you do.
+
+<% story.concealThread('ren_intro') %>
+[deliver ren catchup]
+<% story.showInboxButton() %>
+
+[[Look at the phone (send:)->exploring]]
+```
+
+The `[deliver]` target is tagged `quiet`, so it lands silently with just an unread badge — each real thread now sits in the inbox wearing a badge, its seeds waiting underneath. The intro threads are gone (see the [three rules](#multiple-conversations) for `concealThread`), and the [exploration gate](#gate-the-story-on-exploration-not-a-timer) below pairs naturally with what happens next.
 
 ### Gate the story on exploration, not a timer
 
@@ -1256,6 +1302,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ### Version 2.8.11
 
+- **`story.concealThread(id)`** removes a conversation from the inbox entirely — not the Trash, just gone, as if it had never spoken. The inverse of `revealThread`: the transcript is kept, and any later message (or `revealThread`) brings it back with history intact. Built for disposable intro conversations — introduce a contact in a stand-in thread, conceal it, and let the real, seeded thread be a discovery. Fires `threadconcealed`. See [Multiple conversations](#multiple-conversations) and the [disposable intro conversations](#disposable-intro-conversations) recipe.
 - **Fixed: play-to duplicated delivered messages and could land in the wrong thread.** A fast-forward route that crossed a `[deliver]` edge rendered the delivered message twice — once by the sending passage's directive and again as a bogus cursor move — and repeated fast-forward/rewind cycles stacked further copies. The deliver step now only walks the graph, and a fast-forward lands the view in the target's own conversation even when the target is a delivery or side narration (which never takes the story cursor, however it's tagged).
 - **Fixed: rewinding to a player move could re-send it.** Rewinding the timeline to a "you: …" entry left the story mid-move — the reply already in the transcript, but the same pills re-offered — so continuing (a tap, or play-to choosing for you) sent the same reply again, doubling bubbles with each cycle. A rewind now lands just *before* the move, pills up and the move un-made.
 - **The `threadopened` event.** Fires when the player opens a conversation — the navigational counterpart to `choice`, with `{ thread, story }`. It lets a story track which threads the player has browsed (for example, to gate the story's resumption on inbox exploration rather than a timer) without polling. It stays silent while a save or checkpoint is rebuilt, so a reload never re-fires it. See [Events](#events) and the [exploration-gate recipe](#gate-the-story-on-exploration-not-a-timer).
