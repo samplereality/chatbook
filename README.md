@@ -88,7 +88,7 @@ tweego --list-formats
 {
   "ifid": "YOUR-STORY-IFID",
   "format": "Subtext",
-  "format-version": "2.8.12"
+  "format-version": "2.8.13"
 }
 ```
 
@@ -1316,7 +1316,7 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 
 ## Changelog
 
-### Unreleased
+### Version 2.8.13
 
 - **Fixed: a raw `setTimeout()` in a passage template survived time travel.** The runtime can only cancel the timers it arms itself (`showDelayed`, and now `after`); a bare `window.setTimeout()` in a template was invisible to it, so a timer that showed or delivered a passage kept firing into whatever the player had rewound or jumped to. This surfaced as two debugging symptoms with one cause: an out-of-place message appearing from nowhere, and reply pills going missing after a rewind or jump (the stray `show()` wiped the pills the time-travel had just offered). New `story.after(ms, fn)` is a tracked `setTimeout` that rewind, jump, undo, and restore all sweep, and the story check now notes raw timers. Use `showDelayed()` to advance the story and `after()` for timed side effects. See [Message chains and montages](#message-chains-and-montages).
 
