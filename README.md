@@ -816,7 +816,7 @@ A complete example is [`docs/subtext-inbox-demo.twee`](docs/subtext-inbox-demo.t
 
 ### Notifications
 
-- `story.config.sounds = true` enables subtle synthesized send/receive sounds (no audio files needed). Browsers allow sound only after the player's first interaction, so the very first messages are always silent.
+- `story.config.sounds = true` enables subtle synthesized send/receive sounds (no audio files needed). An incoming speaker's message plays the receive sound; the send sound plays when the player taps a reply **and** when a `speaker-you` passage shows or delivers — the player-character texting sounds like sending, which keeps a montage that mixes speakers audible on every beat. Replays, seeds, and `quiet` deliveries stay silent. Browsers allow sound only after the player's first interaction, so the very first messages are always silent.
 - While the tab is hidden, incoming messages update the title to `(2) Your Story Name` and it resets when the player returns (`story.config.titleNotifications`, on by default).
 
 ### Page chrome and menus
@@ -1317,6 +1317,10 @@ Stories authored for Trialogue work unchanged in most cases — speaker tags, li
 - Twine 1 documents are no longer supported.
 
 ## Changelog
+
+### Unreleased
+
+- **`speaker-you` passages play the send sound.** Authored player-character messages used to show silently — the send sound only accompanied an actual tapped reply. A `speaker-you` passage (shown or delivered) now sounds like sending, the symmetric counterpart of an incoming speaker's receive sound, so a montage that mixes speakers is audible on every beat. Replays, seeds, and `quiet` deliveries stay silent as before. See [Notifications](#notifications).
 
 ### Version 2.8.14
 

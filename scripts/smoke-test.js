@@ -1473,6 +1473,41 @@ async function run() {
 			soundCue.noEmptyBubble
 	);
 
+	// a speaker-you passage is the player-character texting: it plays
+	// the send sound (an incoming speaker plays receive) — and stays
+	// silent on save replays, like every arrival effect
+	check(
+		'a speaker-you passage plays the send sound, silent on replay',
+		await page.evaluate(() => {
+			const before = window.story.saveHash();
+			const played = [];
+			const orig = window.story.playSound;
+
+			window.story.playSound = (name) => played.push(name);
+			window.story.passages.push(
+				new window.Passage(9978, 'you-note', ['speaker-you'], 'on my way')
+			);
+			window.story.show('you-note');
+
+			const live = played.slice();
+
+			// restoring the pre-check save also proves replays are
+			// silent, and puts the transcript back as it was
+			window.story.restore(before);
+
+			const replayed = played.slice(live.length);
+
+			window.story.playSound = orig;
+			window.story.passages.length -= 1;
+
+			return (
+				live.indexOf('send') > -1 &&
+				live.indexOf('receive') === -1 &&
+				replayed.length === 0
+			);
+		})
+	);
+
 	console.log('deleted messages');
 
 	// redactMessage tombstones in place — the node is never removed,

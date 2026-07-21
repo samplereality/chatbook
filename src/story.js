@@ -1290,11 +1290,19 @@ Object.assign(Story.prototype, {
 			}
 		}
 
-		// incoming-message effects (skipped while replaying a save)
+		// message-arrival effects (skipped while replaying a save):
+		// an incoming speaker sounds like receiving; a speaker-you
+		// passage is the player-character texting, so it sounds like
+		// sending — same as a tapped reply
 
-		if (!opts.instant && speaker && speaker !== 'you') {
-			this.playSound('receive');
-			this.notifyTitle();
+		if (!opts.instant && speaker) {
+			if (speaker === 'you') {
+				this.playSound('send');
+			}
+			else {
+				this.playSound('receive');
+				this.notifyTitle();
+			}
 		}
 
 		if (opts.record !== false) {
@@ -5649,9 +5657,14 @@ Object.assign(Story.prototype, {
 			this.timeline.push({ t: 'd', id: passage.id });
 		}
 
-		if (!opts.instant && !quiet && speaker && speaker !== 'you') {
-			this.playSound('receive');
-			this.notifyTitle();
+		if (!opts.instant && !quiet && speaker) {
+			if (speaker === 'you') {
+				this.playSound('send');
+			}
+			else {
+				this.playSound('receive');
+				this.notifyTitle();
+			}
 		}
 
 		// a delivered passage that offers reply pills carries the
