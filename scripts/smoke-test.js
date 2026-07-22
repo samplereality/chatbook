@@ -1556,6 +1556,44 @@ async function run() {
 		})
 	);
 
+	// `||` splits passage text into separate bubbles, matching the
+	// (send: a || b) grammar — a mirrored reply renders the way it
+	// was sent
+	check(
+		'|| in passage text splits into separate bubbles',
+		await page.evaluate(() => {
+			const preLen = window.story.passages.length;
+			const id = preLen + 60;
+			const hash = window.story.saveHash();
+
+			window.story.state.mirrorReply =
+				'oh right || i will call tomorrow';
+			window.story.passages[id] = new window.Passage(
+				id,
+				'mirror-probe',
+				['speaker-2'],
+				'<%= s.mirrorReply %>'
+			);
+			window.story.show('mirror-probe');
+
+			const wrapper = Array.from(
+				document.querySelectorAll('#phistory .chat-passage-wrapper')
+			).pop();
+			const texts = Array.from(
+				wrapper.querySelectorAll('.chat-passage')
+			).map((b) => b.textContent.trim());
+
+			window.story.restore(hash);
+			window.story.passages.length = preLen;
+
+			return (
+				texts.length === 2 &&
+				texts[0] === 'oh right' &&
+				texts[1] === 'i will call tomorrow'
+			);
+		})
+	);
+
 	console.log('deleted messages');
 
 	// redactMessage tombstones in place — the node is never removed,
@@ -1846,6 +1884,132 @@ async function run() {
 			);
 		})
 	);
+	// the variables watchlist: only matching keys display, the rest
+	// fold into an "unwatched" count, and the terms persist
+	check(
+		'the variables watchlist filters the table and persists',
+		await debugPage.evaluate(() => {
+			const input = document.getElementById('debug-watch');
+
+			input.value = 'lastChoice';
+			input.dispatchEvent(new Event('input'));
+
+			const rows = Array.from(
+				document.querySelectorAll('#debug-vars tr td:first-child')
+			).map((c) => c.textContent);
+			const filtered =
+				rows.some((r) => r === 'lastChoice') &&
+				rows.every(
+					(r) =>
+						r.indexOf('lastChoice') > -1 ||
+						r.indexOf('unwatched') > -1
+				);
+			const persisted = Object.keys(window.localStorage).some(
+				(k) =>
+					k.indexOf('subtext-debug-watch-') === 0 &&
+					window.localStorage.getItem(k) === 'lastChoice'
+			);
+
+			input.value = '';
+			input.dispatchEvent(new Event('input'));
+
+			return filtered && persisted;
+		})
+	);
+
+	// resume replays the future a rewind cut off — even a chain fired
+	// from a computed name the edge parser can't see — and making a
+	// real move discards what remained
+	check(
+		'resume steps a computed-name chain from the kept future',
+		await debugPage.evaluate(
+			() =>
+				new Promise((resolve) => {
+					const preHash = window.story.saveHash();
+					const preLen = window.story.passages.length;
+					const base = preLen + 80;
+					const P = window.Passage;
+					const log = () =>
+						document.querySelector('#phistory').textContent;
+
+					window.story.passages[base] = new P(
+						base,
+						'dyn-fork',
+						['speaker-2'],
+						'incoming\n\n<% story.showDelayed(s.route, 60) %>'
+					);
+					window.story.passages[base + 1] = new P(
+						base + 1,
+						'dyn-road',
+						['speaker-2'],
+						'the hidden road\n\n[[onward->dyn-end]]'
+					);
+					window.story.passages[base + 2] = new P(
+						base + 2,
+						'dyn-end',
+						['speaker-2', 'End'],
+						'fin'
+					);
+
+					window.story.state.route = 'dyn-road';
+					window.story.show('dyn-fork');
+
+					setTimeout(() => {
+						window.story.choose('dyn-end', 'onward', 'onward');
+
+						const poll = window.setInterval(() => {
+							if (log().indexOf('fin') === -1) {
+								return;
+							}
+
+							window.clearInterval(poll);
+
+							const idx = window.story.timeline.findIndex(
+								(e) =>
+									e.t === 'p' &&
+									(window.story.passage(e.id) || {}).name ===
+										'dyn-fork'
+							);
+
+							window.story.debugRewind(idx + 1);
+
+							const frozen =
+								log().indexOf('the hidden road') === -1 &&
+								window.story.timers.length === 0;
+							const stepped = window.story.debugResume();
+							const roadBack =
+								log().indexOf('the hidden road') > -1;
+							const pillBack = Array.from(
+								document.querySelectorAll('.user-response')
+							).some(
+								(b) => b.textContent.indexOf('onward') > -1
+							);
+							const futureLeft =
+								window.story._timelineFuture.length > 0;
+
+							// a real tap diverges: the rest is discarded
+							window.story.choose('dyn-end', 'onward', 'onward');
+
+							const discarded =
+								window.story._timelineFuture.length === 0;
+
+							window.story.restore(preHash);
+							window.story.passages.length = preLen;
+
+							resolve(
+								frozen &&
+									stepped &&
+									roadBack &&
+									pillBack &&
+									futureLeft &&
+									discarded
+							);
+						}, 100);
+					}, 400);
+				})
+		)
+	);
+
 	check(
 		'timeline section sits above the jump section',
 		await debugPage.evaluate(() => {
